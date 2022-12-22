@@ -1,0 +1,17 @@
+{
+  "name": "Apex Cache Manager",
+  "namespace": "",
+  "sfdcLoginUrl": "https://login.salesforce.com",
+  "sourceApiVersion": "56.0",
+  "packageDirectories": [
+    {
+      "path": "apex-cache-manager",
+      "default": true
+    }
+  ],
+  "plugins": {
+    "sfdx-plugin-prettier": {
+      "enabled": true
+    }
+  }
+}
