@@ -1,5 +1,7 @@
+@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount')
 public without sharing class CacheManager {
   // TODO finish implementing this, to support dynamic/multiple platform cache partiitions
+  @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
   // private static final Map<CacheType, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
@@ -12,95 +14,42 @@ public without sharing class CacheManager {
   private static final CacheConfiguration__mdt SESSION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Session');
   private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction');
 
-  // TODO eliminate / switch to using CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE
-  private static PlatformCache orgCacheInstance;
-
-  // TODO promote to top-level class?
-  public enum CacheType {
-    ORGANIZATION_PLATFORM_CACHE,
-    SESSION_PLATFORM_CACHE,
-    TRANSACTION_CACHE
+  private enum PlatformCacheType {
+    ORGANIZATION,
+    SESSION
   }
 
+  @SuppressWarnings('PMD.ApexDoc')
   public interface Cacheable {
     Boolean contains(String key);
-    Set<String> getKeys();
     Object get(String key);
     Map<String, Object> get(Set<String> keys);
     Map<String, Object> getAll();
+    Set<String> getKeys();
     Boolean isAvailable();
     Boolean isEnabled();
     Boolean isImmutable();
     void put(String key, Object value);
-    void putAll(Map<String, Object> keyToValue);
+    void put(Map<String, Object> keyToValue);
     void remove(String key);
+    void remove(Set<String> keys);
     void removeAll();
   }
-
-  // public static Cacheable getCache(CacheType type) {
-  //   switch on type {
-  //     when ORGANIZATION_PLATFORM_CACHE {
-  //       return getOrganizationCache();
-  //     }
-  //     when SESSION_PLATFORM_CACHE {
-  //       return getSessionCache();
-  //     }
-  //     when TRANSACTION_CACHE {
-  //       return getTransactionCache();
-  //     }
-  //     when else {
-  //       return null;
-  //     }
-  //   }
-  // }
-
-  // public static Cacheable getCache(CacheType type, CacheConfiguration__mdt configuration) {
-  //   switch on type {
-  //     when ORGANIZATION_PLATFORM_CACHE {
-  //       // return getPlatformCache(configuration, CacheType.ORGANIZATION_PLATFORM_CACHE);
-  //       return getOrganizationCache(configuration);
-  //     }
-  //     when SESSION_PLATFORM_CACHE {
-  //       return getSessionCache(configuration);
-  //     }
-  //     when TRANSACTION_CACHE {
-  //       // return getTransactionCache(configuration);
-  //       return getTransactionCache();
-  //     }
-  //     when else {
-  //       return null;
-  //     }
-  //   }
-  // }
 
   public static Cacheable getOrganizationCache() {
     return getOrganizationCache(ORGANIZATION_CACHE_CONFIGURATION);
   }
 
-  public static Cacheable getOrganizationCache(String cachePartitionName) {
-    CacheConfiguration__mdt defaultConfiguration = ORGANIZATION_CACHE_CONFIGURATION.clone();
-    defaultConfiguration.DeveloperName = cachePartitionName;
-    defaultConfiguration.PlatformCachePartitionName__c = cachePartitionName;
-    return getOrganizationCache(defaultConfiguration);
-  }
-
   public static Cacheable getOrganizationCache(CacheConfiguration__mdt configuration) {
-    return getPlatformCache(configuration, CacheType.ORGANIZATION_PLATFORM_CACHE);
+    return getPlatformCache(configuration, PlatformCacheType.ORGANIZATION);
   }
 
   public static Cacheable getSessionCache() {
     return getSessionCache(SESSION_CACHE_CONFIGURATION);
   }
 
-  public static Cacheable getSessionCache(String cachePartitionName) {
-    CacheConfiguration__mdt defaultConfiguration = SESSION_CACHE_CONFIGURATION.clone();
-    defaultConfiguration.DeveloperName = cachePartitionName;
-    defaultConfiguration.PlatformCachePartitionName__c = cachePartitionName;
-    return getSessionCache(defaultConfiguration);
-  }
-
   public static Cacheable getSessionCache(CacheConfiguration__mdt configuration) {
-    return getPlatformCache(configuration, CacheType.SESSION_PLATFORM_CACHE);
+    return getPlatformCache(configuration, PlatformCacheType.SESSION);
   }
 
   public static Cacheable getTransactionCache() {
@@ -123,12 +72,12 @@ public without sharing class CacheManager {
     }
   }
 
-  private static Cacheable getPlatformCache(CacheConfiguration__mdt configuration, CacheType platformCacheType) {
+  private static Cacheable getPlatformCache(CacheConfiguration__mdt configuration, PlatformCacheType cacheType) {
     if (CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.containsKey(configuration.DeveloperName)) {
       return CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.get(configuration.DeveloperName);
     }
 
-    PlatformCachePartitionProxy partitionProxy = new PlatformCachePartitionProxy(platformCacheType, configuration.PlatformCachePartitionName__c);
+    PlatformCachePartitionProxy partitionProxy = new PlatformCachePartitionProxy(cacheType, configuration.PlatformCachePartitionName__c);
     CacheConfiguration__mdt localTransactionCacheConfiguration = new CacheConfiguration__mdt(
       IsEnabled__c = true,
       IsImmutable__c = configuration.IsImmutable__c
@@ -150,30 +99,26 @@ public without sharing class CacheManager {
     for (CacheValue__mdt declarativeCacheValue : DECLARATIVE_CACHE_VALUES) {
       if (declarativeCacheValue.Cache__c == cacheConfiguration.Id && declarativeCacheValue.IsEnabled__c == true) {
         System.Type dataType = System.Type.forName(declarativeCacheValue.DataType__c);
-        System.debug('>>> data type: ' + dataType);
         Boolean isString = declarativeCacheValue.DataType__c == String.class.getName();
         Object castedValue = isString ? declarativeCacheValue.Value__c : JSON.deserialize(declarativeCacheValue.Value__c, dataType);
-        System.debug('>>> data value: ' + castedValue);
         keyToCacheValue.put(declarativeCacheValue.Key__c, castedValue);
       }
     }
-    System.debug('>>> keyToCacheValue: ' + keyToCacheValue);
     return keyToCacheValue;
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
+  @SuppressWarnings('PMD.ApexDoc, PMD.CognitiveComplexity')
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
-    private final Integer cacheTtlSeconds;
     private final CacheConfiguration__mdt configuration;
-    private final transactionCache transactionCache;
+    private final TransactionCache transactionCache;
 
     private PlatformCache(CacheConfiguration__mdt configuration, transactionCache transactionCache, PlatformCachePartitionProxy cachePartitionProxy) {
       this.configuration = configuration;
       this.transactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
 
-      this.putAll(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadDeclarativeCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
@@ -182,13 +127,6 @@ public without sharing class CacheManager {
       } else {
         return this.cachePartitionProxy.contains(key);
       }
-    }
-
-    public Set<String> getKeys() {
-      Set<String> keys = new Set<String>();
-      keys.addAll(this.transactionCache.getKeys());
-      keys.addAll(this.cachePartitionProxy.getKeys());
-      return keys;
     }
 
     public Object get(String key) {
@@ -213,8 +151,12 @@ public without sharing class CacheManager {
       return this.get(this.getKeys());
     }
 
+    public Set<String> getKeys() {
+      return this.isAvailable() == true ? this.cachePartitionProxy.getKeys() : this.transactionCache.getKeys();
+    }
+
     public Boolean isAvailable() {
-      return this.isEnabled() && this.cachePartitionProxy?.isAvailable() == true;
+      return this.isEnabled() && this.cachePartitionProxy.isAvailable() == true;
     }
 
     public Boolean isEnabled() {
@@ -231,7 +173,6 @@ public without sharing class CacheManager {
       }
 
       validateKey(key);
-
       this.transactionCache.put(key, value);
 
       // TODO add check for this.configuration.IsImmutable__c == false + this.contains(key)
@@ -245,7 +186,7 @@ public without sharing class CacheManager {
       }
     }
 
-    public void putAll(Map<String, Object> keyToValue) {
+    public void put(Map<String, Object> keyToValue) {
       for (String key : keyToValue.keySet()) {
         this.put(key, keyToValue.get(key));
       }
@@ -258,18 +199,25 @@ public without sharing class CacheManager {
 
       this.transactionCache.remove(key);
 
-      if (this.configuration.IsEnabled__c == true && this.cachePartitionProxy.isAvailable() == true) {
+      if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
     }
 
+    public void remove(Set<String> keys) {
+      for (String key : keys) {
+        this.remove(key);
+      }
+    }
+
     public void removeAll() {
-      if (this.configuration.IsEnabled__c == true && this.cachePartitionProxy.isAvailable() == true) {
-        this.cachePartitionProxy.removeAll();
+      for (String key : this.getKeys()) {
+        this.remove(key);
       }
     }
   }
 
+  @SuppressWarnings('PMD.ApexDoc')
   private class TransactionCache implements Cacheable {
     private final CacheConfiguration__mdt configuration;
     private final Map<String, Object> keyToValue = new Map<String, Object>();
@@ -277,15 +225,11 @@ public without sharing class CacheManager {
     private TransactionCache(CacheConfiguration__mdt configuration) {
       this.configuration = configuration;
 
-      this.putAll(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadDeclarativeCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);
-    }
-
-    public Set<String> getKeys() {
-      return this.keyToValue.keySet();
     }
 
     public Object get(String key) {
@@ -302,6 +246,10 @@ public without sharing class CacheManager {
 
     public Map<String, Object> getAll() {
       return this.keyToValue.clone();
+    }
+
+    public Set<String> getKeys() {
+      return this.keyToValue.keySet();
     }
 
     public Boolean isAvailable() {
@@ -323,7 +271,7 @@ public without sharing class CacheManager {
       }
     }
 
-    public void putAll(Map<String, Object> keyToValue) {
+    public void put(Map<String, Object> keyToValue) {
       for (String key : keyToValue.keySet()) {
         this.put(key, keyToValue.get(key));
       }
@@ -335,6 +283,12 @@ public without sharing class CacheManager {
       }
     }
 
+    public void remove(Set<String> keys) {
+      for (String key : keys) {
+        this.remove(key);
+      }
+    }
+
     public void removeAll() {
       if (this.isEnabled() == true) {
         this.keyToValue.clear();
@@ -343,21 +297,23 @@ public without sharing class CacheManager {
   }
 
   // Platform Cache proxy class
+  @SuppressWarnings('PMD.ApexDoc')
   @TestVisible
   private virtual class PlatformCachePartitionProxy {
     private final Cache.Partition platformCachePartition;
 
-    protected PlatformCachePartitionProxy(CacheType platformCacheType, String partitionName) {
+    @SuppressWarnings('PMD.EmptyCatchBlock')
+    protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
       // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
       // some orgs could have problematic configurations (or may have even deleted the referenced partition),
       // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       // The alternative is a runtime exception, which isn't ideal.
       try {
-        switch on platformCacheType {
-          when ORGANIZATION_PLATFORM_CACHE {
+        switch on cacheType {
+          when ORGANIZATION {
             this.platformCachePartition = Cache.Org.getPartition(partitionName);
           }
-          when SESSION_PLATFORM_CACHE {
+          when SESSION {
             this.platformCachePartition = Cache.Session.getPartition(partitionName);
           }
         }
@@ -369,11 +325,7 @@ public without sharing class CacheManager {
     }
 
     public virtual Boolean contains(String key) {
-      return this.platformCachePartition != null && this.platformCachePartition.contains(key);
-    }
-
-    public virtual Set<String> getKeys() {
-      return this.platformCachePartition.getKeys();
+      return this.platformCachePartition?.contains(key) == true;
     }
 
     public virtual Object get(String key) {
@@ -384,8 +336,13 @@ public without sharing class CacheManager {
       return this.isAvailable() == false ? new Map<String, Object>() : this.platformCachePartition.get(keys);
     }
 
+    // TODO remove?
+    public virtual Set<String> getKeys() {
+      return this.isAvailable() == false ? new Set<String>() : this.platformCachePartition.getKeys();
+    }
+
     public virtual Boolean isAvailable() {
-      return this.platformCachePartition != null && this.platformCachePartition.isAvailable();
+      return this.platformCachePartition?.isAvailable() == true;
     }
 
     @SuppressWarnings('PMD.ExcessiveParameterList')
@@ -395,12 +352,6 @@ public without sharing class CacheManager {
 
     public virtual void remove(String key) {
       this.platformCachePartition?.remove(key);
-    }
-
-    public void removeAll() {
-      for (String key : this.platformCachePartition?.getKeys()) {
-        this.platformCachePartition.remove(key);
-      }
     }
   }
 }
