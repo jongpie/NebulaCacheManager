@@ -15,6 +15,9 @@ deploy-options.json
 # LWC Jest coverage reports
 coverage/
 
+# Salesforce metadata
+**.profile-meta.xml
+
 # Logs
 logs
 *.log

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>KeyMustBeAlphanumeric</fullName>
+    <active>true</active>
+    <errorConditionFormula>NOT(REGEX(Key__c, &apos;^[a-zA-Z0-9]*$&apos;))</errorConditionFormula>
+    <errorDisplayField>Key__c</errorDisplayField>
+    <errorMessage>Key must be alphanumeric</errorMessage>
+</ValidationRule>
