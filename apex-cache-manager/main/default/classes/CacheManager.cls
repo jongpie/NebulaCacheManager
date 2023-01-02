@@ -22,6 +22,8 @@ public without sharing class CacheManager {
   @SuppressWarnings('PMD.ApexDoc')
   public interface Cacheable {
     Boolean contains(String key);
+    Map<String, Boolean> contains(Set<String> keys);
+    Boolean containsAll(Set<String> keys);
     Object get(String key);
     Map<String, Object> get(Set<String> keys);
     Map<String, Object> getAll();
@@ -129,6 +131,25 @@ public without sharing class CacheManager {
       }
     }
 
+    public Map<String, Boolean> contains(Set<String> keys) {
+      return this.cachePartitionProxy.contains(keys);
+    }
+
+    public Boolean containsAll(Set<String> keys) {
+      Map<String, Boolean> keyToContainsResult = this.cachePartitionProxy.contains(keys);
+      if (keyToContainsResult == null || keyToContainsResult.isEmpty()) {
+        return false;
+      }
+
+      for (String key : keyToContainsResult.keySet()) {
+        Boolean containsKey = keyToContainsResult.get(key);
+        if (containsKey == false) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     public Object get(String key) {
       if (this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
         return this.transactionCache.get(key);
@@ -175,8 +196,7 @@ public without sharing class CacheManager {
       validateKey(key);
       this.transactionCache.put(key, value);
 
-      // TODO add check for this.configuration.IsImmutable__c == false + this.contains(key)
-      if (this.isAvailable() == true) {
+      if (this.isAvailable() == true && this.isImmutable() == false || this.contains(key) == false) {
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == null) {
           value = PLATFORM_CACHE_NULL_VALUE;
@@ -193,12 +213,11 @@ public without sharing class CacheManager {
     }
 
     public void remove(String key) {
-      if (this.configuration.IsImmutable__c == true) {
+      if (this.isImmutable() == true) {
         return;
       }
 
       this.transactionCache.remove(key);
-
       if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
@@ -218,6 +237,84 @@ public without sharing class CacheManager {
   }
 
   @SuppressWarnings('PMD.ApexDoc')
+  @TestVisible
+  private virtual class PlatformCachePartitionProxy {
+    private final Cache.Partition platformCachePartition;
+
+    @SuppressWarnings('PMD.EmptyCatchBlock')
+    protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
+      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
+      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
+      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
+      // The alternative is a runtime exception, which isn't ideal.
+      try {
+        switch on cacheType {
+          when ORGANIZATION {
+            this.platformCachePartition = Cache.Org.getPartition(partitionName);
+          }
+          when SESSION {
+            this.platformCachePartition = Cache.Session.getPartition(partitionName);
+          }
+        }
+      } catch (Cache.Org.OrgCacheException orgCacheException) {
+        // No-op if the partition can't be found - the rest of the code will fallback to using the transaction cache
+      } catch (Cache.Session.SessionCacheException sessionCacheException) {
+        // No-op if the partition can't be found - the rest of the code will fallback to using the transaction cache
+      }
+    }
+
+    public virtual Boolean contains(String key) {
+      return this.platformCachePartition?.contains(key) == true;
+    }
+
+    public Map<String, Boolean> contains(Set<String> keys) {
+      // TODO need to return populated map (with false value) if cache paritition is null
+      return this.platformCachePartition?.contains(keys);
+    }
+
+    public Boolean containsAll(Set<String> keys) {
+      Map<String, Boolean> keyToContainsResult = this.platformCachePartition?.contains(keys);
+      if (keyToContainsResult == null || keyToContainsResult.isEmpty()) {
+        return false;
+      }
+
+      for (String key : keyToContainsResult.keySet()) {
+        Boolean containsKey = keyToContainsResult.get(key);
+        if (containsKey == false) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    public virtual Object get(String key) {
+      return this.platformCachePartition?.get(key);
+    }
+
+    public virtual Map<String, Object> get(Set<String> keys) {
+      return this.isAvailable() == false ? new Map<String, Object>() : this.platformCachePartition.get(keys);
+    }
+
+    // TODO remove?
+    public virtual Set<String> getKeys() {
+      return this.isAvailable() == false ? new Set<String>() : this.platformCachePartition.getKeys();
+    }
+
+    public virtual Boolean isAvailable() {
+      return this.platformCachePartition?.isAvailable() == true;
+    }
+
+    @SuppressWarnings('PMD.ExcessiveParameterList')
+    public virtual void put(String key, Object value, Integer cacheTtlSeconds, Cache.Visibility cacheVisiblity, Boolean isCacheImmutable) {
+      this.platformCachePartition?.put(key, value, cacheTtlSeconds, cacheVisiblity, isCacheImmutable);
+    }
+
+    public virtual void remove(String key) {
+      this.platformCachePartition?.remove(key);
+    }
+  }
+
+  @SuppressWarnings('PMD.ApexDoc')
   private class TransactionCache implements Cacheable {
     private final CacheConfiguration__mdt configuration;
     private final Map<String, Object> keyToValue = new Map<String, Object>();
@@ -230,6 +327,18 @@ public without sharing class CacheManager {
 
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);
+    }
+
+    public Map<String, Boolean> contains(Set<String> keys) {
+      Map<String, Boolean> keyToContainsResult = new Map<String, Boolean>();
+      for (String key : keys) {
+        keyToContainsResult.put(key, this.contains(key));
+      }
+      return keyToContainsResult;
+    }
+
+    public Boolean containsAll(Set<String> keys) {
+      return this.keyToValue.keySet().containsAll(keys);
     }
 
     public Object get(String key) {
@@ -290,68 +399,9 @@ public without sharing class CacheManager {
     }
 
     public void removeAll() {
-      if (this.isEnabled() == true) {
+      if (this.isEnabled() == true && this.isImmutable() == false) {
         this.keyToValue.clear();
       }
-    }
-  }
-
-  // Platform Cache proxy class
-  @SuppressWarnings('PMD.ApexDoc')
-  @TestVisible
-  private virtual class PlatformCachePartitionProxy {
-    private final Cache.Partition platformCachePartition;
-
-    @SuppressWarnings('PMD.EmptyCatchBlock')
-    protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
-      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
-      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
-      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
-      // The alternative is a runtime exception, which isn't ideal.
-      try {
-        switch on cacheType {
-          when ORGANIZATION {
-            this.platformCachePartition = Cache.Org.getPartition(partitionName);
-          }
-          when SESSION {
-            this.platformCachePartition = Cache.Session.getPartition(partitionName);
-          }
-        }
-      } catch (Cache.Org.OrgCacheException orgCacheException) {
-        // No-op if the partition can't be found - the rest of the code will fallback to using the transaction cache
-      } catch (Cache.Session.SessionCacheException sessionCacheException) {
-        // No-op if the partition can't be found - the rest of the code will fallback to using the transaction cache
-      }
-    }
-
-    public virtual Boolean contains(String key) {
-      return this.platformCachePartition?.contains(key) == true;
-    }
-
-    public virtual Object get(String key) {
-      return this.platformCachePartition?.get(key);
-    }
-
-    public virtual Map<String, Object> get(Set<String> keys) {
-      return this.isAvailable() == false ? new Map<String, Object>() : this.platformCachePartition.get(keys);
-    }
-
-    // TODO remove?
-    public virtual Set<String> getKeys() {
-      return this.isAvailable() == false ? new Set<String>() : this.platformCachePartition.getKeys();
-    }
-
-    public virtual Boolean isAvailable() {
-      return this.platformCachePartition?.isAvailable() == true;
-    }
-
-    @SuppressWarnings('PMD.ExcessiveParameterList')
-    public virtual void put(String key, Object value, Integer cacheTtlSeconds, Cache.Visibility cacheVisiblity, Boolean isCacheImmutable) {
-      this.platformCachePartition?.put(key, value, cacheTtlSeconds, cacheVisiblity, isCacheImmutable);
-    }
-
-    public virtual void remove(String key) {
-      this.platformCachePartition?.remove(key);
     }
   }
 }
