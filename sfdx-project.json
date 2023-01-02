@@ -9,7 +9,7 @@
       "default": true
     },
     {
-      "path": "joys-of-apex-article",
+      "path": "joys-of-apex-article/src",
       "default": false
     }
   ],
