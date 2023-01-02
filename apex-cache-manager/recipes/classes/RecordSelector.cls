@@ -14,6 +14,7 @@ public without sharing class RecordSelector {
       WHERE Id = :System.UserInfo.getUserId()
     ];
     CacheManager.getSessionCache().put(cacheKey, currentUser);
+    // CacheManager.getCache(CacheManager.CacheType.SESSION_PLATFORM_CACHE).put(cacheKey, currentUser);
     return currentUser;
   }
 
