@@ -32,7 +32,7 @@ TODO
 - Casting the cached data adds overhead
   - TODO add snippet & output of the different in using `static final List<Profile> CACHED_PROFILES` vs calling `(List<Profile>) CacheManager.transactionCache.get('cachedProfiles);` multiple times in 1 transaction (using a loop of 500)
 
-## 1. Platform Cache: A Quick Crash Course
+## Platform Cache: A Quick Crash Course
 
 - Types of cache partitions (org & session)
 - Cache namespace
@@ -40,7 +40,7 @@ TODO
   - Specified partition name doesn't exist
   - Specified partion doesn't have any available storage space
 
-## 2. Start Small: Implementing A Simple Transaction Cache
+## 1. Start Small: Implementing A Simple Transaction Cache
 
 Now that we've discussed how constants & static variables work in Apex, let's start there. We need a fancy caching system in Apex - it should
 
@@ -72,7 +72,7 @@ public class MyClass {
 - Heap size is consumed
 - Naming of keys could lead to separate, unrelated classes accidentally overwriting each other's cached data by unintentionally reusing the same key
 
-## 3. Abstracting The Transaction Cache Implementation
+## 2. Abstracting The Transaction Cache Implementation
 
 The 3-line version of `CacheManager` is effective, but the implementation & the underlying data structure (`Map<String, Object>`) are currently the same thing - there's no abstraction at the moment, which can make it difficult to added additional safeguards & functionality into the caching system. Let's take the `CacheManager` class a step further, and we'll added a new inner class & methods to abstract away some of the inner-workings.
 
@@ -117,7 +117,7 @@ public without sharing class CacheManager_v2_transaction_class {
 
 Internally, the transaction cache is still using the same `Map<String, Object>` data structure for caching, but that implementation detail is now hidden from consumers of `CacheManager`. An singleton instance of the new `TransactionCache` class now provides methods that interact with the `private Map<String, Object>` variable, which will later also provide the ability to further control how data is added, updated & removed in the cache.
 
-## 4. Caching Data Across Transactions, Using Platform Cache
+## 3. Caching Data Across Transactions, Using Platform Cache
 
 TODO - Discuss platform cache overview
 
@@ -332,7 +332,7 @@ Now, the `CacheManager` provides 3 ways to cache data
 
 And because all 3 of these methods return an instance of the interface `CacheManager.Cacheable`, the way that developers interact with each cache type is the same - developers only need to decide where they want to cache data.
 
-## 5. Supporting Orgs That Don't Have Platform Cache Available
+## 4. Supporting Orgs That Don't Have Platform Cache Available
 
 TODO - For ISVs, discuss adding in `PlatformCachePartitionDelegate` (or `Proxy`) class & how it helps with testability
 
@@ -536,7 +536,7 @@ public without sharing class CacheManager_v5_partition_proxy {
 }
 ```
 
-## 6. Scope-Creep Part 1: Declaratively Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
+## 5. Scope-Creep Part 1: Declaratively Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
 
 TODO - discuss `CacheConfiguration__mdt`
 
@@ -792,7 +792,7 @@ public without sharing class CacheManager_v6_configurations {
 }
 ```
 
-## 7. Scope-Creep Part 2: Declaratively Controlling Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
+## 6. Scope-Creep Part 2: Declaratively Populating Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
 
 We now have a strong foundation for caching data - but it has several limitations:
 
@@ -1087,7 +1087,7 @@ public without sharing class CacheManager_v7_declarative_cache {
 }
 ```
 
-## 8. CacheManager Final Touches - Syntactic Sugar & Dynamism
+## 7. Scope-Creep Part 3: Adding Some Handy Methods
 
 TODO discuss adding new methods to `Cacheable` interface to provide Apex developers more control of the caching system
 
@@ -1511,8 +1511,6 @@ public without sharing class CacheManager {
 
 ```
 
-## Putting It All Together - Leveraging CacheManager
+## Wrapping Up
 
 TODO add example usage of all the cache types
-
-## Wrapping Up

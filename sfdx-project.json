@@ -1,11 +1,17 @@
 {
-  "name": "Apex Cache Manager",
+  "name": "Nebula Cache Manager",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "56.0",
   "packageDirectories": [
     {
-      "path": "apex-cache-manager",
+      "package": "Nebula Cache Manager",
+      "path": "nebula-cache-manager",
+      "definitionFile": "./config/project-scratch-def.json",
+      "versionNumber": "1.0.0.0",
+      "versionName": "Initial Release",
+      "versionDescription": "Initial release of new package",
+      "releaseNotesUrl": "https://github.com/jongpie/NebulaCacheManager/releases",
       "default": true
     },
     {
