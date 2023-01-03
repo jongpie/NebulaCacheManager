@@ -1,5 +1,4 @@
-@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount')
-public without sharing class CacheManager {
+public without sharing class CacheManager_v8_final_touches {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
@@ -16,7 +15,6 @@ public without sharing class CacheManager {
     SESSION
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   public interface Cacheable {
     Boolean contains(String key);
     Map<String, Boolean> contains(Set<String> keys);
@@ -105,7 +103,6 @@ public without sharing class CacheManager {
     return keyToCacheValue;
   }
 
-  @SuppressWarnings('PMD.ApexDoc, PMD.CognitiveComplexity')
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;
@@ -232,12 +229,10 @@ public without sharing class CacheManager {
     }
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   @TestVisible
   private virtual class PlatformCachePartitionProxy {
     private final Cache.Partition platformCachePartition;
 
-    @SuppressWarnings('PMD.EmptyCatchBlock')
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
       // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
       // some orgs could have problematic configurations (or may have even deleted the referenced partition),
@@ -307,7 +302,6 @@ public without sharing class CacheManager {
       return this.platformCachePartition?.isAvailable() == true;
     }
 
-    @SuppressWarnings('PMD.ExcessiveParameterList')
     public virtual void put(String key, Object value, Integer cacheTtlSeconds, Cache.Visibility cacheVisiblity, Boolean isCacheImmutable) {
       this.platformCachePartition?.put(key, value, cacheTtlSeconds, cacheVisiblity, isCacheImmutable);
     }
@@ -317,7 +311,6 @@ public without sharing class CacheManager {
     }
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   private class TransactionCache implements Cacheable {
     private final CacheConfiguration__mdt configuration;
     private final Map<String, Object> keyToValue = new Map<String, Object>();
