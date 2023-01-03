@@ -16,6 +16,7 @@ deploy-options.json
 coverage/
 
 # Salesforce metadata
+**/customMetadata/CacheValue.**.md-meta.xml
 **.profile-meta.xml
 
 # Logs

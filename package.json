@@ -1,8 +1,8 @@
 {
-  "name": "salesforce-app",
+  "name": "nebula-cache-manager",
   "private": true,
   "version": "1.0.0",
-  "description": "Salesforce App",
+  "description": "A robust cache management system for Apex developers",
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**",
     "test": "npm run test:unit",
