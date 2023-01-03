@@ -1,4 +1,4 @@
-public class CacheManager_with_platform_cache {
+public class CacheManager_v4_with_platform_cache {
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
 
   // Private singleton instances of org, session, and transaction caches
@@ -7,18 +7,16 @@ public class CacheManager_with_platform_cache {
   private static TransactionCache transactionCache;
 
   public interface Cacheable {
-    Set<String> getKeys();
     Boolean contains(String key);
     Object get(String key);
     void put(String key, Object value);
     void remove(String key);
-    void removeAll();
   }
 
   public static Cacheable getOrganizationCache() {
     if (organizationCacheInstance == null) {
       // For now, the partition name is hardcoded 😭 But we'll revisit this soon!
-      Cache.Partition organizationPartition = Cache.Org.getPartition('SamplePartition');
+      Cache.Partition organizationPartition = Cache.Org.getPartition('CacheManager');
       organizationCacheInstance = new PlatformCache(organizationPartition, getTransactionCache());
     }
 
@@ -28,7 +26,7 @@ public class CacheManager_with_platform_cache {
   public static Cacheable getSessionCache() {
     if (sessionCacheInstance == null) {
       // For now, the partition name is hardcoded 😭 But we'll revisit this soon!
-      Cache.Partition sessionPartition = Cache.Session.getPartition('SamplePartition');
+      Cache.Partition sessionPartition = Cache.Session.getPartition('CacheManager');
       sessionCacheInstance = new PlatformCache(sessionPartition, getTransactionCache());
     }
 
@@ -53,10 +51,6 @@ public class CacheManager_with_platform_cache {
     private PlatformCache(Cache.Partition platformCachePartition, Cacheable transactionCache) {
       this.transactionCache = transactionCache;
       this.platformCachePartition = platformCachePartition;
-    }
-
-    public Set<String> getKeys() {
-      return this.platformCachePartition.getKeys();
     }
 
     public Boolean contains(String key) {
@@ -101,22 +95,10 @@ public class CacheManager_with_platform_cache {
         this.platformCachePartition.remove(key);
       }
     }
-
-    public void removeAll() {
-      if (this.platformCachePartition.isAvailable() == true) {
-        for (String key : this.getKeys()) {
-          this.platformCachePartition.remove(key);
-        }
-      }
-    }
   }
 
   private class TransactionCache implements Cacheable {
     private final Map<String, Object> keyToValue = new Map<String, Object>();
-
-    public Set<String> getKeys() {
-      return this.keyToValue.keySet();
-    }
 
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);
@@ -132,10 +114,6 @@ public class CacheManager_with_platform_cache {
 
     public void remove(String key) {
       this.keyToValue.remove(key);
-    }
-
-    public void removeAll() {
-      this.keyToValue.clear();
     }
   }
 }

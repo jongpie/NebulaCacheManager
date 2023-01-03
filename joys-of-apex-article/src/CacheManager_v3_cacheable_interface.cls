@@ -1,16 +1,14 @@
-public without sharing class CacheManager_cacheable_interface {
+public without sharing class CacheManager_v3_cacheable_interface {
   @TestVisible
   private static final List<CacheValue__mdt> DECLARATIVE_CACHE_VALUES = CacheValue__mdt.getAll().values();
 
   private static Cacheable transactionCache;
 
   public interface Cacheable {
-    Set<String> getKeys();
     Boolean contains(String key);
     Object get(String key);
     void put(String key, Object value);
     void remove(String key);
-    void removeAll();
   }
 
   // The getTransactionCache() method now returns an instance of Cacheable, instead of TransactionCache
@@ -29,11 +27,6 @@ public without sharing class CacheManager_cacheable_interface {
     private final Map<String, Object> keyToValue = new Map<String, Object>();
 
     private TransactionCache() {
-      this.loadDeclarativeCacheValues();
-    }
-
-    public Set<String> getKeys() {
-      return this.keyToValue.keySet();
     }
 
     public Boolean contains(String key) {
@@ -50,16 +43,6 @@ public without sharing class CacheManager_cacheable_interface {
 
     public void remove(String key) {
       this.keyToValue.remove(key);
-    }
-
-    public void removeAll() {
-      this.keyToValue.clear();
-    }
-
-    private void loadDeclarativeCacheValues() {
-      for (CacheValue__mdt declarativeCacheValue : DECLARATIVE_CACHE_VALUES) {
-        this.keyToValue.put(declarativeCacheValue.DeveloperName, declarativeCacheValue.Value__c);
-      }
     }
   }
 }

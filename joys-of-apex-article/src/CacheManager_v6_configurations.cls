@@ -1,5 +1,4 @@
-@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount')
-public without sharing class CacheManager {
+public without sharing class CacheManager_v6_configurations {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
@@ -16,23 +15,14 @@ public without sharing class CacheManager {
     SESSION
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   public interface Cacheable {
     Boolean contains(String key);
-    Map<String, Boolean> contains(Set<String> keys);
-    Boolean containsAll(Set<String> keys);
     Object get(String key);
-    Map<String, Object> get(Set<String> keys);
-    Map<String, Object> getAll();
-    Set<String> getKeys();
     Boolean isAvailable();
     Boolean isEnabled();
     Boolean isImmutable();
     void put(String key, Object value);
-    void put(Map<String, Object> keyToValue);
     void remove(String key);
-    void remove(Set<String> keys);
-    void removeAll();
   }
 
   public static Cacheable getOrganizationCache() {
@@ -88,24 +78,6 @@ public without sharing class CacheManager {
     return platformCache;
   }
 
-  private static Map<String, Object> loadDeclarativeCacheValues(CacheConfiguration__mdt cacheConfiguration) {
-    Map<String, Object> keyToCacheValue = new Map<String, Object>();
-    if (cacheConfiguration.IsEnabled__c == false || cacheConfiguration.Id == null) {
-      return keyToCacheValue;
-    }
-
-    for (CacheValue__mdt declarativeCacheValue : DECLARATIVE_CACHE_VALUES) {
-      if (declarativeCacheValue.Cache__c == cacheConfiguration.Id && declarativeCacheValue.IsEnabled__c == true) {
-        System.Type dataType = System.Type.forName(declarativeCacheValue.DataType__c);
-        Boolean isString = declarativeCacheValue.DataType__c == String.class.getName();
-        Object castedValue = isString ? declarativeCacheValue.Value__c : JSON.deserialize(declarativeCacheValue.Value__c, dataType);
-        keyToCacheValue.put(declarativeCacheValue.Key__c, castedValue);
-      }
-    }
-    return keyToCacheValue;
-  }
-
-  @SuppressWarnings('PMD.ApexDoc, PMD.CognitiveComplexity')
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;
@@ -115,8 +87,6 @@ public without sharing class CacheManager {
       this.configuration = configuration;
       this.transactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
-
-      this.put(loadDeclarativeCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
@@ -125,25 +95,6 @@ public without sharing class CacheManager {
       } else {
         return this.cachePartitionProxy.contains(key);
       }
-    }
-
-    public Map<String, Boolean> contains(Set<String> keys) {
-      return this.cachePartitionProxy.contains(keys);
-    }
-
-    public Boolean containsAll(Set<String> keys) {
-      Map<String, Boolean> keyToContainsResult = this.cachePartitionProxy.contains(keys);
-      if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
-        return false;
-      }
-
-      for (String key : keyToContainsResult.keySet()) {
-        Boolean containsKey = keyToContainsResult.get(key);
-        if (containsKey == false) {
-          return false;
-        }
-      }
-      return true;
     }
 
     public Object get(String key) {
@@ -158,18 +109,6 @@ public without sharing class CacheManager {
         this.transactionCache.put(key, value);
         return value;
       }
-    }
-
-    public Map<String, Object> get(Set<String> keys) {
-      return this.cachePartitionProxy.get(keys);
-    }
-
-    public Map<String, Object> getAll() {
-      return this.get(this.getKeys());
-    }
-
-    public Set<String> getKeys() {
-      return this.isAvailable() == true ? this.cachePartitionProxy.getKeys() : this.transactionCache.getKeys();
     }
 
     public Boolean isAvailable() {
@@ -202,12 +141,6 @@ public without sharing class CacheManager {
       }
     }
 
-    public void put(Map<String, Object> keyToValue) {
-      for (String key : keyToValue.keySet()) {
-        this.put(key, keyToValue.get(key));
-      }
-    }
-
     public void remove(String key) {
       if (this.isImmutable() == true) {
         return;
@@ -224,20 +157,12 @@ public without sharing class CacheManager {
         this.remove(key);
       }
     }
-
-    public void removeAll() {
-      for (String key : this.getKeys()) {
-        this.remove(key);
-      }
-    }
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   @TestVisible
   private virtual class PlatformCachePartitionProxy {
     private final Cache.Partition platformCachePartition;
 
-    @SuppressWarnings('PMD.EmptyCatchBlock')
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
       // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
       // some orgs could have problematic configurations (or may have even deleted the referenced partition),
@@ -263,51 +188,14 @@ public without sharing class CacheManager {
       return this.platformCachePartition?.contains(key) == true;
     }
 
-    public Map<String, Boolean> contains(Set<String> keys) {
-      Map<String, Boolean> keyToContainsResult = this.platformCachePartition?.contains(keys);
-      if (keyToContainsResult == null) {
-        keyToContainsResult = new Map<String, Boolean>();
-      }
-      if (keyToContainsResult.isEmpty() == true) {
-        for (String key : keys) {
-          keyToContainsResult.put(key, false);
-        }
-      }
-      return keyToContainsResult;
-    }
-
-    public Boolean containsAll(Set<String> keys) {
-      Map<String, Boolean> keyToContainsResult = this.platformCachePartition?.contains(keys);
-      if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
-        return false;
-      }
-
-      for (String key : keyToContainsResult.keySet()) {
-        Boolean containsKey = keyToContainsResult.get(key);
-        if (containsKey == false) {
-          return false;
-        }
-      }
-      return true;
-    }
-
     public virtual Object get(String key) {
       return this.platformCachePartition?.get(key);
-    }
-
-    public virtual Map<String, Object> get(Set<String> keys) {
-      return this.isAvailable() == false ? new Map<String, Object>() : this.platformCachePartition.get(keys);
-    }
-
-    public virtual Set<String> getKeys() {
-      return this.isAvailable() == false ? new Set<String>() : this.platformCachePartition.getKeys();
     }
 
     public virtual Boolean isAvailable() {
       return this.platformCachePartition?.isAvailable() == true;
     }
 
-    @SuppressWarnings('PMD.ExcessiveParameterList')
     public virtual void put(String key, Object value, Integer cacheTtlSeconds, Cache.Visibility cacheVisiblity, Boolean isCacheImmutable) {
       this.platformCachePartition?.put(key, value, cacheTtlSeconds, cacheVisiblity, isCacheImmutable);
     }
@@ -317,51 +205,20 @@ public without sharing class CacheManager {
     }
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   private class TransactionCache implements Cacheable {
     private final CacheConfiguration__mdt configuration;
     private final Map<String, Object> keyToValue = new Map<String, Object>();
 
     private TransactionCache(CacheConfiguration__mdt configuration) {
       this.configuration = configuration;
-
-      this.put(loadDeclarativeCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);
     }
 
-    public Map<String, Boolean> contains(Set<String> keys) {
-      Map<String, Boolean> keyToContainsResult = new Map<String, Boolean>();
-      for (String key : keys) {
-        keyToContainsResult.put(key, this.contains(key));
-      }
-      return keyToContainsResult;
-    }
-
-    public Boolean containsAll(Set<String> keys) {
-      return this.keyToValue.keySet().containsAll(keys);
-    }
-
     public Object get(String key) {
       return this.keyToValue.get(key);
-    }
-
-    public Map<String, Object> get(Set<String> keys) {
-      Map<String, Object> matchingKeyToValue = new Map<String, Object>();
-      for (String key : keys) {
-        matchingKeyToValue.put(key, this.get(key));
-      }
-      return matchingKeyToValue;
-    }
-
-    public Map<String, Object> getAll() {
-      return this.keyToValue.clone();
-    }
-
-    public Set<String> getKeys() {
-      return this.keyToValue.keySet();
     }
 
     public Boolean isAvailable() {
@@ -383,27 +240,9 @@ public without sharing class CacheManager {
       }
     }
 
-    public void put(Map<String, Object> keyToValue) {
-      for (String key : keyToValue.keySet()) {
-        this.put(key, keyToValue.get(key));
-      }
-    }
-
     public void remove(String key) {
       if (this.isEnabled() == true && this.isImmutable() == false) {
         this.keyToValue.remove(key);
-      }
-    }
-
-    public void remove(Set<String> keys) {
-      for (String key : keys) {
-        this.remove(key);
-      }
-    }
-
-    public void removeAll() {
-      if (this.isEnabled() == true && this.isImmutable() == false) {
-        this.keyToValue.clear();
       }
     }
   }
