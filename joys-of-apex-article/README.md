@@ -221,7 +221,7 @@ public class CacheManager_v4_with_platform_cache {
   public static Cacheable getOrganizationCache() {
     if (organizationCacheInstance == null) {
       // For now, the partition name is hardcoded 😭 But we'll revisit this soon!
-      Cache.Partition organizationPartition = Cache.Org.getPartition('CacheManager');
+      Cache.Partition organizationPartition = Cache.Org.getPartition('CacheManagerPartition');
       organizationCacheInstance = new PlatformCache(organizationPartition, getTransactionCache());
     }
 
@@ -231,7 +231,7 @@ public class CacheManager_v4_with_platform_cache {
   public static Cacheable getSessionCache() {
     if (sessionCacheInstance == null) {
       // For now, the partition name is hardcoded 😭 But we'll revisit this soon!
-      Cache.Partition sessionPartition = Cache.Session.getPartition('CacheManager');
+      Cache.Partition sessionPartition = Cache.Session.getPartition('CacheManagerPartition');
       sessionCacheInstance = new PlatformCache(sessionPartition, getTransactionCache());
     }
 
@@ -1101,14 +1101,10 @@ TODO discuss adding new methods to `Cacheable` interface to provide Apex develop
 8. `void removeAll()`
 
 ```java
-@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount')
-public without sharing class CacheManager {
-  // TODO finish implementing this, to support dynamic/multiple platform cache partiitions
+public without sharing class CacheManager_v8_final_touches {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
-  // private static final Map<CacheType, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
-  // TODO solidify approach for mocking CacheConfiguration__mdt & CacheValue__mdt records
   @TestVisible
   private static final List<CacheValue__mdt> DECLARATIVE_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
@@ -1122,7 +1118,6 @@ public without sharing class CacheManager {
     SESSION
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   public interface Cacheable {
     Boolean contains(String key);
     Map<String, Boolean> contains(Set<String> keys);
@@ -1188,7 +1183,6 @@ public without sharing class CacheManager {
       IsImmutable__c = configuration.IsImmutable__c
     );
 
-    // TODO finish implementation to use this below
     PlatformCache platformCache = new PlatformCache(configuration, new TransactionCache(localTransactionCacheConfiguration), partitionProxy);
     CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.put(configuration.DeveloperName, platformCache);
 
@@ -1212,7 +1206,6 @@ public without sharing class CacheManager {
     return keyToCacheValue;
   }
 
-  @SuppressWarnings('PMD.ApexDoc, PMD.CognitiveComplexity')
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;
@@ -1240,7 +1233,7 @@ public without sharing class CacheManager {
 
     public Boolean containsAll(Set<String> keys) {
       Map<String, Boolean> keyToContainsResult = this.cachePartitionProxy.contains(keys);
-      if (keyToContainsResult == null || keyToContainsResult.isEmpty()) {
+      if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
         return false;
       }
 
@@ -1339,12 +1332,10 @@ public without sharing class CacheManager {
     }
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   @TestVisible
   private virtual class PlatformCachePartitionProxy {
     private final Cache.Partition platformCachePartition;
 
-    @SuppressWarnings('PMD.EmptyCatchBlock')
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
       // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
       // some orgs could have problematic configurations (or may have even deleted the referenced partition),
@@ -1371,13 +1362,21 @@ public without sharing class CacheManager {
     }
 
     public Map<String, Boolean> contains(Set<String> keys) {
-      // TODO need to return populated map (with false value) if cache paritition is null
-      return this.platformCachePartition?.contains(keys);
+      Map<String, Boolean> keyToContainsResult = this.platformCachePartition?.contains(keys);
+      if (keyToContainsResult == null) {
+        keyToContainsResult = new Map<String, Boolean>();
+      }
+      if (keyToContainsResult.isEmpty() == true) {
+        for (String key : keys) {
+          keyToContainsResult.put(key, false);
+        }
+      }
+      return keyToContainsResult;
     }
 
     public Boolean containsAll(Set<String> keys) {
       Map<String, Boolean> keyToContainsResult = this.platformCachePartition?.contains(keys);
-      if (keyToContainsResult == null || keyToContainsResult.isEmpty()) {
+      if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
         return false;
       }
 
@@ -1398,7 +1397,6 @@ public without sharing class CacheManager {
       return this.isAvailable() == false ? new Map<String, Object>() : this.platformCachePartition.get(keys);
     }
 
-    // TODO remove?
     public virtual Set<String> getKeys() {
       return this.isAvailable() == false ? new Set<String>() : this.platformCachePartition.getKeys();
     }
@@ -1407,7 +1405,6 @@ public without sharing class CacheManager {
       return this.platformCachePartition?.isAvailable() == true;
     }
 
-    @SuppressWarnings('PMD.ExcessiveParameterList')
     public virtual void put(String key, Object value, Integer cacheTtlSeconds, Cache.Visibility cacheVisiblity, Boolean isCacheImmutable) {
       this.platformCachePartition?.put(key, value, cacheTtlSeconds, cacheVisiblity, isCacheImmutable);
     }
@@ -1417,7 +1414,6 @@ public without sharing class CacheManager {
     }
   }
 
-  @SuppressWarnings('PMD.ApexDoc')
   private class TransactionCache implements Cacheable {
     private final CacheConfiguration__mdt configuration;
     private final Map<String, Object> keyToValue = new Map<String, Object>();

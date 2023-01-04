@@ -5,6 +5,9 @@
   "description": "A robust cache management system for Apex developers",
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**",
+    "package:aliases:sort": "sfdx bummer:package:aliases:sort",
+    "package:version:create:nonamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (no namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30",
+    "package:version:create:withnamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (Nebula namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30",
     "test": "npm run test:unit",
     "test:unit": "sfdx-lwc-jest",
     "test:unit:watch": "sfdx-lwc-jest --watch",
