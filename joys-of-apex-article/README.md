@@ -1,9 +1,9 @@
 ---
-title: "Joys of Apex: Iteratively Building a Flexible Caching System"
-description: "TODO"
-keywords: "salesforce.com, SFDC, apex, caching, platform cache"
-image: "./joys-of-apex.png"
-date: ""
+title: 'Joys of Apex: Iteratively Building a Flexible Caching System'
+description: 'TODO'
+keywords: 'salesforce.com, SFDC, apex, caching, platform cache'
+image: './joys-of-apex.png'
+date: ''
 ---
 
 # Iteratively Building a Flexible Caching System
