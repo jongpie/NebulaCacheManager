@@ -2,7 +2,7 @@
   "name": "nebula-cache-manager",
   "private": true,
   "version": "1.0.0",
-  "description": "A robust cache management system for Apex developers",
+  "description": "A scalable & configurable cache management system for Apex developers",
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**",
     "package:aliases:sort": "sfdx bummer:package:aliases:sort",
