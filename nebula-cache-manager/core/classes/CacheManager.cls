@@ -1,3 +1,8 @@
+//-----------------------------------------------------------------------------------------------------//
+// This file is part of the Nebula Query & Search project, released under the MIT License.             //
+// See LICENSE file or go to https://github.com/jongpie/NebulaQueryAndSearch for full license details. //
+//-----------------------------------------------------------------------------------------------------//
+
 @SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount')
 public without sharing class CacheManager {
   @TestVisible
