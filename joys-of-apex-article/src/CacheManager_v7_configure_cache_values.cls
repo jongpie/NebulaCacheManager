@@ -1,9 +1,9 @@
-public without sharing class CacheManager_v7_declarative_cache {
+public without sharing class CacheManager_v7_configure_cache_values {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
   @TestVisible
-  private static final List<CacheValue__mdt> DECLARATIVE_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
+  private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
   private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization');
@@ -54,9 +54,8 @@ public without sharing class CacheManager_v7_declarative_cache {
   }
 
   private static void validateKey(String key) {
-    Pattern targetPattern = Pattern.compile('^[a-zA-Z0-9]+$');
-
-    Matcher regexMatcher = targetPattern.matcher(key);
+    Pattern alphanumericPattern = Pattern.compile('^[a-zA-Z0-9]+$');
+    Matcher regexMatcher = alphanumericPattern.matcher(key);
     if (regexMatcher.matches() == false) {
       throw new IllegalArgumentException('Key must be alphanumeric, received key: ' + key);
     }
@@ -79,18 +78,18 @@ public without sharing class CacheManager_v7_declarative_cache {
     return platformCache;
   }
 
-  private static Map<String, Object> loadDeclarativeCacheValues(CacheConfiguration__mdt cacheConfiguration) {
+  private static Map<String, Object> loadConfiguredCacheValues(CacheConfiguration__mdt cacheConfiguration) {
     Map<String, Object> keyToCacheValue = new Map<String, Object>();
     if (cacheConfiguration.IsEnabled__c == false || cacheConfiguration.Id == null) {
       return keyToCacheValue;
     }
 
-    for (CacheValue__mdt declarativeCacheValue : DECLARATIVE_CACHE_VALUES) {
-      if (declarativeCacheValue.Cache__c == cacheConfiguration.Id && declarativeCacheValue.IsEnabled__c == true) {
-        System.Type dataType = System.Type.forName(declarativeCacheValue.DataType__c);
-        Boolean isString = declarativeCacheValue.DataType__c == String.class.getName();
-        Object castedValue = isString ? declarativeCacheValue.Value__c : JSON.deserialize(declarativeCacheValue.Value__c, dataType);
-        keyToCacheValue.put(declarativeCacheValue.Key__c, castedValue);
+    for (CacheValue__mdt configuredCacheValue : CONFIGURED_CACHE_VALUES) {
+      if (configuredCacheValue.Cache__c == cacheConfiguration.Id && configuredCacheValue.IsEnabled__c == true) {
+        System.Type dataType = System.Type.forName(configuredCacheValue.DataType__c);
+        Boolean isString = configuredCacheValue.DataType__c == String.class.getName();
+        Object castedValue = isString ? configuredCacheValue.Value__c : JSON.deserialize(configuredCacheValue.Value__c, dataType);
+        keyToCacheValue.put(configuredCacheValue.Key__c, castedValue);
       }
     }
     return keyToCacheValue;
@@ -99,34 +98,34 @@ public without sharing class CacheManager_v7_declarative_cache {
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;
-    private final TransactionCache transactionCache;
+    private final TransactionCache fallbackTransactionCache;
 
     private PlatformCache(CacheConfiguration__mdt configuration, transactionCache transactionCache, PlatformCachePartitionProxy cachePartitionProxy) {
       this.configuration = configuration;
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
 
-      this.put(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadConfiguredCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
-      if (this.configuration.IsEnabled__c == false || this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.configuration.IsEnabled__c == false || this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.cachePartitionProxy.contains(key);
       }
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.cachePartitionProxy.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
@@ -149,7 +148,7 @@ public without sharing class CacheManager_v7_declarative_cache {
       }
 
       validateKey(key);
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       if (this.isAvailable() == true && this.isImmutable() == false || this.contains(key) == false) {
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
@@ -172,7 +171,7 @@ public without sharing class CacheManager_v7_declarative_cache {
         return;
       }
 
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
       if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
@@ -184,10 +183,8 @@ public without sharing class CacheManager_v7_declarative_cache {
     private final Cache.Partition platformCachePartition;
 
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
-      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
-      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
-      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
-      // The alternative is a runtime exception, which isn't ideal.
+      // If the specified partition name is not found, the platform automatically throws a runtime exception, which isn't ideal.
+      // It seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       try {
         switch on cacheType {
           when ORGANIZATION {
@@ -232,7 +229,7 @@ public without sharing class CacheManager_v7_declarative_cache {
     private TransactionCache(CacheConfiguration__mdt configuration) {
       this.configuration = configuration;
 
-      this.put(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadConfiguredCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {

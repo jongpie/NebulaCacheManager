@@ -48,9 +48,8 @@ public without sharing class CacheManager_v5_partition_proxy {
   }
 
   private static void validateKey(String key) {
-    Pattern targetPattern = Pattern.compile('^[a-zA-Z0-9]+$');
-
-    Matcher regexMatcher = targetPattern.matcher(key);
+    Pattern alphanumericPattern = Pattern.compile('^[a-zA-Z0-9]+$');
+    Matcher regexMatcher = alphanumericPattern.matcher(key);
     if (regexMatcher.matches() == false) {
       throw new IllegalArgumentException('Key must be alphanumeric, received key: ' + key);
     }
@@ -65,32 +64,32 @@ public without sharing class CacheManager_v5_partition_proxy {
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final Integer cacheTtlSeconds;
-    private final TransactionCache transactionCache;
+    private final TransactionCache fallbackTransactionCache;
 
     private PlatformCache(TransactionCache transactionCache, PlatformCachePartitionProxy cachePartitionProxy, Integer cacheTtlSeconds) {
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
       this.cacheTtlSeconds = cacheTtlSeconds;
     }
 
     public Boolean contains(String key) {
-      if (this.transactionCache.contains(key) == true || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.fallbackTransactionCache.contains(key) == true || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.cachePartitionProxy.contains(key);
       }
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.cachePartitionProxy.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
@@ -101,7 +100,7 @@ public without sharing class CacheManager_v5_partition_proxy {
 
     public void put(String key, Object value) {
       validateKey(key);
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       // Platform cache does not support storing null values, so a predefined value is used as a substitute
       if (value == null) {
@@ -113,7 +112,7 @@ public without sharing class CacheManager_v5_partition_proxy {
     }
 
     public void remove(String key) {
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
       if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
@@ -125,10 +124,8 @@ public without sharing class CacheManager_v5_partition_proxy {
     private final Cache.Partition platformCachePartition;
 
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
-      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
-      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
-      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
-      // The alternative is a runtime exception, which isn't ideal.
+      // If the specified partition name is not found, the platform automatically throws a runtime exception, which isn't ideal.
+      // It seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       try {
         switch on cacheType {
           when ORGANIZATION {
@@ -169,9 +166,6 @@ public without sharing class CacheManager_v5_partition_proxy {
   private class TransactionCache implements Cacheable {
     private final CacheConfiguration__mdt configuration;
     private final Map<String, Object> keyToValue = new Map<String, Object>();
-
-    private TransactionCache() {
-    }
 
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);

@@ -46,37 +46,37 @@ public class CacheManager_v4_with_platform_cache {
     private final Boolean cacheIsImmutable = true;
     private final Integer cacheTtlSeconds;
     private final Cache.Visibility cacheVisibility = Cache.Visibility.All;
-    private final Cacheable transactionCache;
+    private final Cacheable fallbackTransactionCache;
 
     private PlatformCache(Cache.Partition platformCachePartition, Cacheable transactionCache) {
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.platformCachePartition = platformCachePartition;
     }
 
     public Boolean contains(String key) {
-      if (this.transactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.fallbackTransactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.platformCachePartition.contains(key);
       }
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.platformCachePartition.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
 
     public void put(String key, Object value) {
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       if (this.platformCachePartition.isAvailable() == true) {
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
@@ -89,7 +89,7 @@ public class CacheManager_v4_with_platform_cache {
     }
 
     public void remove(String key) {
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
 
       if (this.platformCachePartition.isAvailable() == true) {
         this.platformCachePartition.remove(key);

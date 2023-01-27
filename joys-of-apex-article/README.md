@@ -1,5 +1,5 @@
 ---
-title: 'Joys of Apex: Iteratively Building a Flexible Caching System'
+title: 'Joys of Apex: Iteratively Building a Flexible Caching System for Apex'
 description: 'TODO'
 keywords: 'salesforce.com, SFDC, apex, caching, platform cache'
 image: './joys-of-apex.png'
@@ -8,15 +8,24 @@ date: ''
 
 # Iteratively Building a Flexible Caching System
 
+## TODO add intro paragraph here
+
+Since I last [wrote an article for Joys of Apex](https://www.jamessimone.net/blog/joys-of-apex/whats-new-with-nebula-logger/), TODO
+
 When it comes to developing in Apex, we need to always be aware of any platform limitations. And often, data that we need to use in Apex can come with overhead to retrieve or generate. In particular, I've found myself especially concerned with 3 limits:
 
-1. SOQL query limits: Apex has a limit on the number of queries you can execute per transaction. Furthermore, queries on large objects (with millions of rows of data) can be slow, which slows down other parts of the system for users.
-2. CPU time limits: some data is generated in-memory by Apex code, which can also slow down other parts of the system for users.
-3. Callout limits: some data lives outside of Salesforce, and Salesforce developers need to retrieve it within Apex. There are not only limits on the number of callouts per transaction, but also limits on when you can make a callout in Apex - you cannot make a callout after running a DML statement, which can make Apex development even more challenging for developers that need to implement tight integrations with external systems.
+1. **SOQL query limits**: Apex has a limit on the number of queries you can execute per transaction. Furthermore, queries on large objects (with millions of rows of data) can be slow, which slows down other parts of the system for users. In some situations, orgs can have [their org throttled](https://help.salesforce.com/s/articleView?id=000384939&type=1) due SOQL query issues (among other reasons), so ensuring your Apex code effectively utilizes queries in LDV orgs can become crucial.
+2. **CPU time limits**: Some data is generated in-memory by Apex code, which can also slow down other parts of the system for users. Sometimes, the data doesn't need to be stored in a custom object (which would consume your org's storage limits), but the data itself may not change frequently, so caching the data could be useful optimization.
+3. **Callout limits**: for some data lives outside of Salesforce, and Salesforce developers need to retrieve it within Apex. There are not only limits on the number of callouts per transaction, but also limits on when you can make a callout in Apex - you cannot make a callout after running a DML statement, which can make Apex development even more challenging for developers that need to implement tight integrations with external systems.
 
-Recently when working on [Nebula Logger](https://nebulalogger.com), there were several areas that caused issues for customer orgs with large data volumes (LDV). Over the course of about a month, I implemented several enhancements to help alleviate some of the slowness by implementing [a caching system](https://github.com/jongpie/NebulaLogger/blob/v4.9.9/nebula-logger/core/main/configuration/classes/LoggerCache.cls). The caching system not only helped with Nebula Logger's performance, but it also laid the groundwork for a standalone cache management system that I've released as another open source project + unlocked packages: [Nebula Cache Manager](https://github.com/jongpie/NebulaCacheManager)
+Recently when working on [Nebula Logger](https://nebulalogger.com), there were several areas that caused issues for customer orgs with large data volumes (LDV). One of Nebula Logger's features is that it automatically logs data about the current `Organization`, the current `User`, their `AuthSession` and other contexual data. But some of this data requires SOQL queries, which can introduce 2 issues:
 
-And in today's article, I'd like to walk through some of the thoughts & iterations I made when implementing the system. We'll start by implementing an incredibly basic caching system in 3 lines of code, and by the end, we'll have a scalable & configurable caching system, using 400+ lines of Apex code & 2 custom metadata types.
+1. **SOQL query limits**: although most of Nebula Logger's queries run async, some of them run synchronously, which counts against the same limit that Apex developers are using within their own code. This is done so that the data can be set on the `LogEntryEvent__e` platform events, which several orgs use in external systems that [subscribe to the platform events using the Pub/Sub API](https://developer.salesforce.com/docs/platform/pub-sub-api/overview). So, in order to set the fields on the platform events, querying the data has to be done synchronously. These queries unfortunately count towards the same transactional limits used by other Apex in the org, such as [`Limits.getQueries()`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_limits.htm#apex_System_Limits_getQueries) and [`Limits.getQueryRows()`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_limits.htm#apex_System_Limits_getQueryRows).
+2. **Database throttling in orgs with large data volume (LDV)**: for orgs that have millions of rows of data in several objects, every query needs to be as performant as possible - and if not needed, then don't run unnecessary queries. For Nebula Logger, some orgs still want the data to be _occassionally_ queried (as it provides more context for logging data) - but for several of the queries (like the `Profile` for the current user), the queried data typically doesn't change frequently, so querying the data in every transaction could definitely be seen as unnecessary.
+
+Over the course of about a month, I implemented some enhancements to help alleviate some of the slowness by implementing [a caching system](https://github.com/jongpie/NebulaLogger/blob/v4.9.9/nebula-logger/core/main/configuration/classes/LoggerCache.cls). The caching system not only helped with Nebula Logger's performance, but it also laid the groundwork for a standalone cache management system that I've released as another open source project: [Nebula Cache Manager](https://github.com/jongpie/NebulaCacheManager)
+
+And in today's article, I'd like to walk through some of the thoughts & iterations I made when implementing the system. We'll start by implementing an incredibly basic caching system in only 3 lines of code - and by the end, we'll have a flexible caching system that's scalable & configurable, using 400+ lines of Apex code & 2 custom metadata types.
 
 ## Prerequisite: Understanding Apex Static Variables
 
@@ -39,7 +48,7 @@ public class SomeClass {
 
 Once a static variable is set in Apex, its value will remain for the duration of the transaction (or until Apex code changes the value). As described in the [Apex Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_static.htm):
 
-> "A static variable is static only within the scope of the Apex transaction. It’s not static across the server or the entire organization." 
+> "A static variable is static only within the scope of the Apex transaction. It’s not static across the server or the entire organization."
 
 This has 2 implications for caching data using only static variables:
 
@@ -129,17 +138,9 @@ public class SomeClass {
 
 This is a good starting point of a caching system, even if it's limited. Any Apex class in your org can now use a `String` key to cache any Apex data type - in the process, we're using some of Salesforce's heap size limits, but this seems like a good compromise for the sake of providing a centralized cache management system.
 
-<!-- TODO delete -->
-<!-- ### Considerations / Things To Be Aware Of
-
-- Heap size is consumed
-- Naming of keys could lead to separate, unrelated classes accidentally overwriting each other's cached data by unintentionally reusing the same key -->
-
 ## 2. Abstracting The Transaction Cache Implementation
 
-The 3-line version of `CacheManager` is effective, but the implementation & the underlying data structure (`Map<String, Object>`) are currently the same thing - there's no abstraction at the moment, which can make it difficult to add additional safeguards & functionality into the caching system. Let's take the `CacheManager` class a step further, and we'll add a new inner class & methods to abstract away some of the inner-workings.
-
-A bit of a prefactor here, but knowing that I want to also support using platform cache (and that I don't like to expose static variables), let's start by making an inner class to represent the transaction cache. This will make it easier in the next section to add support for new cache types.
+The 3-line version of `CacheManager` is effective, but the implementation & the underlying data structure (`Map<String, Object>`) are currently the same thing - there's no abstraction at the moment, which can make it difficult to add additional safeguards & functionality into the caching system. Let's take the `CacheManager` class a step further, and we'll add a new inner class called `TransactionCache` to abstract away some of the inner-workings.
 
 ```java
 public without sharing class CacheManager_v2_transaction_class {
@@ -155,9 +156,6 @@ public without sharing class CacheManager_v2_transaction_class {
 
   public class TransactionCache {
     private final Map<String, Object> keyToValue = new Map<String, Object>();
-
-    private TransactionCache() {
-    }
 
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);
@@ -178,7 +176,7 @@ public without sharing class CacheManager_v2_transaction_class {
 }
 ```
 
-Internally, the transaction cache is still using the same `Map<String, Object>` data structure for caching, but that implementation detail is now hidden from consumers of `CacheManager`. An singleton instance of the new `TransactionCache` class now provides methods that interact with the `private Map<String, Object>` variable. These methods also provide the ability to further control how data is added, updated & removed in the cache (which we'll implement later).
+Internally, the transaction cache is still using the same `Map<String, Object>` data structure for caching, but that implementation detail is now hidden from consumers of `CacheManager`. A singleton instance of the new `TransactionCache` class now provides methods that interact with the `Map<String, Object>` variable. And by using methods (instead of directly exposing the `Map<String, Object>` variable), we now also the ability to further control how data is added, updated & removed in the cache (which we'll implement later).
 
 Now, our example class can use the new `getTransactionCache()` method, instead of directly accessing the `Map<String, Object>`.
 
@@ -200,9 +198,7 @@ public class SomeClass {
 
 ## 3. Caching Data Across Transactions, Using Platform Cache
 
-TODO - Discuss platform cache overview
-
-The `CacheManager` class now provides a way for managing the transaction cache, and the underlying data structure has been safely tucked away from consumers of `CacheManager`. Developers can add, update, retrieve & remove cached data as needed via Apex. But fundamentally, the transaction cache has a flaw - the cached data only lasts for the life of the transaction, so every Apex transaction (that uses the cached data) will still have overhead of querying/generating data & adding it to the cache. By leveraging platform cache, we can start caching data across Apex's transaction boundaries.
+The `CacheManager` class now provides a way for managing the transaction cache, and the underlying data structure has been safely tucked away from consumers of `CacheManager`. Developers can add, update, retrieve & remove cached data as needed via Apex. But fundamentally, the transaction cache has a limitation - the cached data only lasts for the life of the transaction, so every Apex transaction (that uses the cached data) will still have overhead of querying or generating data & adding it to the cache. By leveraging platform cache, we can start caching data across Apex's transaction boundaries.
 
 <!-- TODO add details about how much platform cache allocation is included in orgs by default  -->
 <!-- It's important to note that orgs have XX platform cache space included  -->
@@ -215,13 +211,10 @@ Let's incorporate Platform Cache into the `CacheManager` class - this will provi
 2. Organization cache: our platform cache partition's org cache
 3. Session cache: our platform cache partition's session cache
 
-Ideally, Apex developers should be able to use all 3 cache types in the same way - developers will want to choose which cache type makes the most sense for each dataset being cached, but _using_ each cache should be consistent. This is a great time to introduce a new `interface` that all 3 cache types implement. The `TransactionCache` class already has several methods, so let's make a new `interface` with those methods.
+Ideally, Apex developers should be able to use all 3 cache types in the same way - developers will want to choose which cache type makes the most sense for each dataset being cached, but _using_ each cache should be consistent. This is a great time to introduce a new `interface` that all 3 cache types will implement. The `TransactionCache` class already has several methods, so let's make a new `interface` with those methods - we'll call it `Cacheable` to align with Salesforce's naming convention used for several standard Apex interfaces, such as [`Database.Batchable`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_interface_database_batchable.htm), [`System.Queueable`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_class_System_Queueable.htm), and [`System.Schedulable`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_interface_system_schedulablecontext.htm).
 
 ```java
 public without sharing class CacheManager_v3_cacheable_interface {
-  @TestVisible
-  private static final List<CacheValue__mdt> DECLARATIVE_CACHE_VALUES = CacheValue__mdt.getAll().values();
-
   private static Cacheable transactionCache;
 
   public interface Cacheable {
@@ -246,9 +239,6 @@ public without sharing class CacheManager_v3_cacheable_interface {
   private class TransactionCache implements Cacheable {
     private final Map<String, Object> keyToValue = new Map<String, Object>();
 
-    private TransactionCache() {
-    }
-
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);
     }
@@ -268,7 +258,17 @@ public without sharing class CacheManager_v3_cacheable_interface {
 }
 ```
 
-With our new `Cacheable` interface in place, we've completed abstracting away the `TransactionCache` (it's now `private`), and we've laid the foundation for supporting new types of caches for developers to use. Let's update `CacheManager` to use Platform Cache.
+With our new `Cacheable` interface in place, we've completed abstracting away the inner class `TransactionCache` (it's now `private`), and we've laid the foundation for supporting new types of caches with our new `Cacheable` interface. We can start to update `CacheManager` to use Platform Cache.
+
+When I first worked on integrating platform cache for Nebula Logger, [James pointed out that](https://github.com/jongpie/NebulaLogger/pull/394#discussion_r1005027179) I had some repetitve code for handling both the org platform cache partition using [`Cache.OrgPartition`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_class_cache_OrgPartition.htm) and the session platform cache partition [`Cache.SessionPartition`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_class_cache_SessionPartition.htm). This led to the realization that I could reduce most of the duplicated code by using the class [`Cache.Partition`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_class_cache_Partition.htm), the super class of both `Cache.OrgPartition` and `Cache.SessionPartition`. For the moment, there are 5 `Cache.Partition` methods needed:
+
+1. `Cache.Partition.isAvailable()` - this indicates if a platform cache partition is available in the current transaction. If a partition is not available, any attempt to use it to cache data will throw an exception.
+2. `Cache.Partition.contains(String key)` - this is the same concept as a map's method `containsKey(String)`, and indicates if the specified key has been cached within the platform cache partition.
+3. `Cache.Partition.get(String key)` - this is the same concept as a map's method `get(String)`, and will retrieve the specified key's value from the platform cache partition.
+   4 `Cache.Partition.put(String key, Object value, Integer ttlSecs, Cache.Visibility visibility, Boolean isImmutable)` - there are several overloads available for the `put()` method. This overload is used because it provides the most control for how the data is cached. Later, we'll also use some of these additional parameters to provide admins & developers the ability to configure these values - but for now, the values are hardcoded.
+4. `Cache.Partition.remove(String key)` - this is the same concept as a map's method `remove(String)`, and will remove the specified key from the platform cache partition.
+
+With this information in mind, the `CacheManager` class can be expanded again to have 2 new static methods that Apex developers can use for interacting with platform cache: `getOrganizationCache()` and `getSessionCache()`. Internally, a new `PlatformCache` class implements the `Cacheable` interface, and handles all of the common functionality used for interacting with org & session platform caches.
 
 ```java
 public class CacheManager_v4_with_platform_cache {
@@ -318,37 +318,37 @@ public class CacheManager_v4_with_platform_cache {
     private final Boolean cacheIsImmutable = true;
     private final Integer cacheTtlSeconds;
     private final Cache.Visibility cacheVisibility = Cache.Visibility.All;
-    private final Cacheable transactionCache;
+    private final Cacheable fallbackTransactionCache;
 
     private PlatformCache(Cache.Partition platformCachePartition, Cacheable transactionCache) {
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.platformCachePartition = platformCachePartition;
     }
 
     public Boolean contains(String key) {
-      if (this.transactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.fallbackTransactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.platformCachePartition.contains(key);
       }
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.platformCachePartition.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.platformCachePartition.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
 
     public void put(String key, Object value) {
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       if (this.platformCachePartition.isAvailable() == true) {
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
@@ -361,7 +361,7 @@ public class CacheManager_v4_with_platform_cache {
     }
 
     public void remove(String key) {
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
 
       if (this.platformCachePartition.isAvailable() == true) {
         this.platformCachePartition.remove(key);
@@ -393,9 +393,9 @@ public class CacheManager_v4_with_platform_cache {
 
 Now, the `CacheManager` provides 3 ways to cache data
 
-1. `CacheManager.getOrganizationCache()` - leverages the org partition in Platform Cache for storing cached data, and internally supplements it with the transaction cache.
-2. `CacheManager.getSessionCache()` - leverages the session partition in Platform Cache for storing cached data, and internally supplements it with the transaction cache.
-3. `CacheManager.getTransactionCache()` - leverages `Map<String, Object>` for storing cached data, and internally supplements it with declaratively cached data stored in `CacheValue__mdt`
+1. `CacheManager.getOrganizationCache()` - leverages the org partition in platform cache for storing cached data, and internally supplements it with the transaction cache.
+2. `CacheManager.getSessionCache()` - leverages the session partition in platform cache for storing cached data, and internally supplements it with the transaction cache.
+3. `CacheManager.getTransactionCache()` - leverages `Map<String, Object>` for storing cached data, and internally supplements it with configuredly cached data stored in `CacheValue__mdt`
 
 And because all 3 of these methods return an instance of the interface `CacheManager.Cacheable`, the way that developers interact with each cache type is the same - developers only need to decide where they want to cache data.
 
@@ -403,9 +403,13 @@ Furthermore, we've handled one quirk with platform cache - we've added support f
 
 ## 4. Supporting Orgs That Don't Have Platform Cache Available
 
-When implementing Nebula Logger's caching system, I ran into some additional limitations with platform cache - in orgs that do not have platform cache partition space allocated, adding data to a cache partition would result in an exception being thrown. For many orgs, this may not be an issue - if you're using platform cache in your org, then you simply need to configure a cache partition, and you're ready to go. But what about orgs that don't have available platform cache space? Or what if an admin misconfigures a cache partition? Throwing an exception doesn't seem ideal. Instead, I wanted the cache system to gracefully handle this, while still providing some level of caching. Furthermore, in Apex tests, you cannot create a mock cache partition, which really makes testing more challenging.
+When implementing Nebula Logger's caching system, I ran into some additional limitations with platform cache - in orgs that do not have platform cache partition space allocated, adding data to a cache partition would result in an exception being thrown. For many orgs, this may not be an issue - if you know that you're using platform cache in your org, then you simply need to configure a cache partition, and you're ready to go. But there are a couple situations that I wanted to support:
 
-To help handle some of these nuances of platform cache, let's introduce a new private inner class, `PlatformCachePartitionProxy`, that uses the [proxy structural pattern](https://refactoring.guru/design-patterns/proxy) to handle all interactions with cache partitions..
+- **You're building a reusable app for Salesforce**: it could be an open source project, or [ISV Partner](https://1.appexchange.com/partnerprogram) releasing app on [AppExchange](https://appexchange.salesforce.com/). If you're trying to build a reusable app that leverages platform cache, you need to ensure your code still works in orgs that don't have available platform cache space.
+- **Platform Cache configuration could change**: Even if an org has platform cache space available, if no space has been allocated to the specific partition being used, you can encounter errors.
+- **You can't mock platform cache partitions in Apex tests**: during Apex test execution, the actual cache partitions deployed to your org are used, and there's not currently a way to create a mock instance. If your org does not have space allocated to a partition used by tests, then the tests will fail, which really makes true unit testing more challenging.
+
+For all of these situations, throwing an exception doesn't seem ideal. Instead, I want the cache system to gracefully handle this, while still providing some level of caching. To help handle some of these nuances of platform cache, let's introduce a new private inner class, `PlatformCachePartitionProxy`, that uses the [proxy structural pattern](https://refactoring.guru/design-patterns/proxy) to handle all interactions with cache partitions.
 
 ```java
 public without sharing class CacheManager_v5_partition_proxy {
@@ -458,9 +462,8 @@ public without sharing class CacheManager_v5_partition_proxy {
   }
 
   private static void validateKey(String key) {
-    Pattern targetPattern = Pattern.compile('^[a-zA-Z0-9]+$');
-
-    Matcher regexMatcher = targetPattern.matcher(key);
+    Pattern alphanumericPattern = Pattern.compile('^[a-zA-Z0-9]+$');
+    Matcher regexMatcher = alphanumericPattern.matcher(key);
     if (regexMatcher.matches() == false) {
       throw new IllegalArgumentException('Key must be alphanumeric, received key: ' + key);
     }
@@ -475,32 +478,32 @@ public without sharing class CacheManager_v5_partition_proxy {
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final Integer cacheTtlSeconds;
-    private final TransactionCache transactionCache;
+    private final TransactionCache fallbackTransactionCache;
 
     private PlatformCache(TransactionCache transactionCache, PlatformCachePartitionProxy cachePartitionProxy, Integer cacheTtlSeconds) {
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
       this.cacheTtlSeconds = cacheTtlSeconds;
     }
 
     public Boolean contains(String key) {
-      if (this.transactionCache.contains(key) == true || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.fallbackTransactionCache.contains(key) == true || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.cachePartitionProxy.contains(key);
       }
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.cachePartitionProxy.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
@@ -511,7 +514,7 @@ public without sharing class CacheManager_v5_partition_proxy {
 
     public void put(String key, Object value) {
       validateKey(key);
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       // Platform cache does not support storing null values, so a predefined value is used as a substitute
       if (value == null) {
@@ -523,7 +526,7 @@ public without sharing class CacheManager_v5_partition_proxy {
     }
 
     public void remove(String key) {
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
       if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
@@ -535,10 +538,8 @@ public without sharing class CacheManager_v5_partition_proxy {
     private final Cache.Partition platformCachePartition;
 
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
-      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
-      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
-      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
-      // The alternative is a runtime exception, which isn't ideal.
+      // If the specified partition name is not found, the platform automatically throws a runtime exception, which isn't ideal.
+      // It seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       try {
         switch on cacheType {
           when ORGANIZATION {
@@ -580,9 +581,6 @@ public without sharing class CacheManager_v5_partition_proxy {
     private final CacheConfiguration__mdt configuration;
     private final Map<String, Object> keyToValue = new Map<String, Object>();
 
-    private TransactionCache() {
-    }
-
     public Boolean contains(String key) {
       return this.keyToValue.containsKey(key);
     }
@@ -615,9 +613,9 @@ With the new class `PlatformCachePartitionProxy` in place, the `CacheManager` cl
 
 At this point, this is effectively the same cache management system used internally by [Nebula Logger](https://github.com/jongpie/NebulaLogger/blob/v4.9.9/nebula-logger/core/main/configuration/classes/LoggerCache.cls), which has already provided some great improvements in several orgs. But if we want to build a standalone caching system, we can add several additional features to make it a highly scalable & configurable.
 
-## 5. Scope-Creep Part 1: Declaratively Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
+## 5. Scope-Creep Part 1: Configuredly Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
 
-When building reusable tools - espcially in Salesforce - I think it can be incredibly powerful to provide configurable controls that can be updated declaratively by admins & developers. In this case, I want to be able to configure several details about the caching system:
+When building reusable tools - espcially in Salesforce - I think it can be incredibly powerful to provide configurable controls that can be updated configuredly by admins & developers. In this case, I want to be able to configure several details about the caching system:
 
 1. Be able to enable/disable the 3 different cache types (transaction cache, org platform cache, and session platform cache)
 2. Be able to configure the name of the platform cache partition used by the org cache & session cache
@@ -625,7 +623,7 @@ When building reusable tools - espcially in Salesforce - I think it can be incre
 4. Support for multiple platform cache partitions
 5. Control if cache values are immutable (meaning that the values cannot be changed until the cache expires) or mutable (any cached value can be overwritten at any time)
 
-With these features in mind, let's create a new [custom metadata type (CMDT)](https://trailhead.salesforce.com/content/learn/modules/custom_metadata_types_dec) object to store the configurations. CMDT are a great way to store configurable data that can also be deployed, which seems like a great solution for our cache management system. In this case, I've created a new CMDT called `CacheConfiguration__mdt` with several fields to control the cache system's behavior.
+With these features in mind, let's create a new [custom metadata type (CMDT)](https://trailhead.salesforce.com/content/learn/modules/custom_metadata_types_dec) object to store the configurations. CMDT provide the ability to store configurable data that can also be deployed, which seems like a great solution for our cache management system. In this case, I've created a new CMDT called `CacheConfiguration__mdt` with several fields to control the cache system's behavior.
 
 ![CacheConfiguration__mdt Setup Page](cache-configuration-setup-page.png)
 
@@ -637,15 +635,15 @@ Each record now provides an admin-friendly way to customize the caching system.
 
 ![CacheConfiguration__mdt Organization Record](cache-configuration-organization-record.png)
 
-There's just one important step left - we need to incorporate new `CacheValue__mdt` object into the `CacheManager` class.
+There's just one important step left - we need to incorporate new `CacheConfiguration__mdt` object into the `CacheManager` class.
+
+# TODO add summary about how `CacheConfiguration__mdt` has been incorporated
 
 ```java
 public without sharing class CacheManager_v6_configurations {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
-  @TestVisible
-  private static final List<CacheValue__mdt> DECLARATIVE_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
   private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization');
@@ -695,9 +693,8 @@ public without sharing class CacheManager_v6_configurations {
   }
 
   private static void validateKey(String key) {
-    Pattern targetPattern = Pattern.compile('^[a-zA-Z0-9]+$');
-
-    Matcher regexMatcher = targetPattern.matcher(key);
+    Pattern alphanumericPattern = Pattern.compile('^[a-zA-Z0-9]+$');
+    Matcher regexMatcher = alphanumericPattern.matcher(key);
     if (regexMatcher.matches() == false) {
       throw new IllegalArgumentException('Key must be alphanumeric, received key: ' + key);
     }
@@ -723,32 +720,32 @@ public without sharing class CacheManager_v6_configurations {
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;
-    private final TransactionCache transactionCache;
+    private final TransactionCache fallbackTransactionCache;
 
     private PlatformCache(CacheConfiguration__mdt configuration, transactionCache transactionCache, PlatformCachePartitionProxy cachePartitionProxy) {
       this.configuration = configuration;
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
     }
 
     public Boolean contains(String key) {
-      if (this.configuration.IsEnabled__c == false || this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.configuration.IsEnabled__c == false || this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.cachePartitionProxy.contains(key);
       }
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.cachePartitionProxy.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
@@ -771,7 +768,7 @@ public without sharing class CacheManager_v6_configurations {
       }
 
       validateKey(key);
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       if (this.isAvailable() == true && this.isImmutable() == false || this.contains(key) == false) {
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
@@ -788,7 +785,7 @@ public without sharing class CacheManager_v6_configurations {
         return;
       }
 
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
       if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
@@ -806,10 +803,8 @@ public without sharing class CacheManager_v6_configurations {
     private final Cache.Partition platformCachePartition;
 
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
-      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
-      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
-      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
-      // The alternative is a runtime exception, which isn't ideal.
+      // If the specified partition name is not found, the platform automatically throws a runtime exception, which isn't ideal.
+      // It seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       try {
         switch on cacheType {
           when ORGANIZATION {
@@ -893,7 +888,7 @@ public without sharing class CacheManager_v6_configurations {
 
 Although this change involves modifying nearly every method within `CacheManager`, the changes are seamless to Apex developers, and do not impact the way that the caching system is used.
 
-## 6. Scope-Creep Part 2: Declaratively Populating Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
+## 6. Scope-Creep Part 2: Configuredly Populating Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
 
 We now have a strong foundation for caching data, and we can control the behavior of the caching system using the new `CacheConfiguration__mdt` custom metadata type. But one limitation with the current system: it still requires a developer to write code to populate/update the cached value. But what if some data doesn't change very frequently (and thus, can be cached for longer than the duration supported by platform cache)? If an urgent issue comes up & the Apex code that caches the data is incorrect, do developers need to immediately deploy a hotfix to correct it?
 
@@ -903,15 +898,15 @@ Let's provide an admin-friendly way that supports overriding cached values. We c
 ![CacheValue__mdt List View](cache-value-list-view.png)
 ![CacheValue__mdt Example Record](cache-value-example-record.png)
 
-Now that we have a declarative place to store cached data, let's incorporate it into the `CacheManager` class.
+Now that we have a configured place to store cached data, let's incorporate it into the `CacheManager` class.
 
 ```java
-public without sharing class CacheManager_v7_declarative_cache {
+public without sharing class CacheManager_v7_configure_cache_values {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
   @TestVisible
-  private static final List<CacheValue__mdt> DECLARATIVE_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
+  private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
   private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization');
@@ -962,9 +957,8 @@ public without sharing class CacheManager_v7_declarative_cache {
   }
 
   private static void validateKey(String key) {
-    Pattern targetPattern = Pattern.compile('^[a-zA-Z0-9]+$');
-
-    Matcher regexMatcher = targetPattern.matcher(key);
+    Pattern alphanumericPattern = Pattern.compile('^[a-zA-Z0-9]+$');
+    Matcher regexMatcher = alphanumericPattern.matcher(key);
     if (regexMatcher.matches() == false) {
       throw new IllegalArgumentException('Key must be alphanumeric, received key: ' + key);
     }
@@ -987,18 +981,18 @@ public without sharing class CacheManager_v7_declarative_cache {
     return platformCache;
   }
 
-  private static Map<String, Object> loadDeclarativeCacheValues(CacheConfiguration__mdt cacheConfiguration) {
+  private static Map<String, Object> loadConfiguredCacheValues(CacheConfiguration__mdt cacheConfiguration) {
     Map<String, Object> keyToCacheValue = new Map<String, Object>();
     if (cacheConfiguration.IsEnabled__c == false || cacheConfiguration.Id == null) {
       return keyToCacheValue;
     }
 
-    for (CacheValue__mdt declarativeCacheValue : DECLARATIVE_CACHE_VALUES) {
-      if (declarativeCacheValue.Cache__c == cacheConfiguration.Id && declarativeCacheValue.IsEnabled__c == true) {
-        System.Type dataType = System.Type.forName(declarativeCacheValue.DataType__c);
-        Boolean isString = declarativeCacheValue.DataType__c == String.class.getName();
-        Object castedValue = isString ? declarativeCacheValue.Value__c : JSON.deserialize(declarativeCacheValue.Value__c, dataType);
-        keyToCacheValue.put(declarativeCacheValue.Key__c, castedValue);
+    for (CacheValue__mdt configuredCacheValue : CONFIGURED_CACHE_VALUES) {
+      if (configuredCacheValue.Cache__c == cacheConfiguration.Id && configuredCacheValue.IsEnabled__c == true) {
+        System.Type dataType = System.Type.forName(configuredCacheValue.DataType__c);
+        Boolean isString = configuredCacheValue.DataType__c == String.class.getName();
+        Object castedValue = isString ? configuredCacheValue.Value__c : JSON.deserialize(configuredCacheValue.Value__c, dataType);
+        keyToCacheValue.put(configuredCacheValue.Key__c, castedValue);
       }
     }
     return keyToCacheValue;
@@ -1007,34 +1001,34 @@ public without sharing class CacheManager_v7_declarative_cache {
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;
-    private final TransactionCache transactionCache;
+    private final TransactionCache fallbackTransactionCache;
 
     private PlatformCache(CacheConfiguration__mdt configuration, transactionCache transactionCache, PlatformCachePartitionProxy cachePartitionProxy) {
       this.configuration = configuration;
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
 
-      this.put(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadConfiguredCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
-      if (this.configuration.IsEnabled__c == false || this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.configuration.IsEnabled__c == false || this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.cachePartitionProxy.contains(key);
       }
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.cachePartitionProxy.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
@@ -1057,7 +1051,7 @@ public without sharing class CacheManager_v7_declarative_cache {
       }
 
       validateKey(key);
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       if (this.isAvailable() == true && this.isImmutable() == false || this.contains(key) == false) {
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
@@ -1080,7 +1074,7 @@ public without sharing class CacheManager_v7_declarative_cache {
         return;
       }
 
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
       if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
@@ -1092,10 +1086,8 @@ public without sharing class CacheManager_v7_declarative_cache {
     private final Cache.Partition platformCachePartition;
 
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
-      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
-      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
-      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
-      // The alternative is a runtime exception, which isn't ideal.
+      // If the specified partition name is not found, the platform automatically throws a runtime exception, which isn't ideal.
+      // It seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       try {
         switch on cacheType {
           when ORGANIZATION {
@@ -1140,7 +1132,7 @@ public without sharing class CacheManager_v7_declarative_cache {
     private TransactionCache(CacheConfiguration__mdt configuration) {
       this.configuration = configuration;
 
-      this.put(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadConfiguredCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
@@ -1206,13 +1198,16 @@ public without sharing class CacheManager_v8_final_touches {
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
 
   @TestVisible
-  private static final List<CacheValue__mdt> DECLARATIVE_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
+  private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
   private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization');
   private static final CacheConfiguration__mdt SESSION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Session');
   private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction');
 
+  private static Map<PlatformCacheType, PlatformCachePartitionProxy> cacheTypeToMockPartitionProxy = new Map<PlatformCacheType, PlatformCachePartitionProxy>();
+
+  @TestVisible
   private enum PlatformCacheType {
     ORGANIZATION,
     SESSION
@@ -1263,10 +1258,14 @@ public without sharing class CacheManager_v8_final_touches {
     return transactionCacheInstance;
   }
 
-  private static void validateKey(String key) {
-    Pattern targetPattern = Pattern.compile('^[a-zA-Z0-9]+$');
+  @TestVisible
+  private static void setMockPartitionProxy(PlatformCacheType cacheType, PlatformCachePartitionProxy mockPartitionProxy) {
+    cacheTypeToMockPartitionProxy.put(cacheType, mockPartitionProxy);
+  }
 
-    Matcher regexMatcher = targetPattern.matcher(key);
+  private static void validateKey(String key) {
+    Pattern alphanumericPattern = Pattern.compile('^[a-zA-Z0-9]+$');
+    Matcher regexMatcher = alphanumericPattern.matcher(key);
     if (regexMatcher.matches() == false) {
       throw new IllegalArgumentException('Key must be alphanumeric, received key: ' + key);
     }
@@ -1278,6 +1277,10 @@ public without sharing class CacheManager_v8_final_touches {
     }
 
     PlatformCachePartitionProxy partitionProxy = new PlatformCachePartitionProxy(cacheType, configuration.PlatformCachePartitionName__c);
+    if (cacheTypeToMockPartitionProxy.containsKey(cacheType)) {
+      partitionProxy = cacheTypeToMockPartitionProxy.get(cacheType);
+    }
+
     CacheConfiguration__mdt localTransactionCacheConfiguration = new CacheConfiguration__mdt(
       IsEnabled__c = true,
       IsImmutable__c = configuration.IsImmutable__c
@@ -1289,18 +1292,18 @@ public without sharing class CacheManager_v8_final_touches {
     return platformCache;
   }
 
-  private static Map<String, Object> loadDeclarativeCacheValues(CacheConfiguration__mdt cacheConfiguration) {
+  private static Map<String, Object> loadConfiguredCacheValues(CacheConfiguration__mdt cacheConfiguration) {
     Map<String, Object> keyToCacheValue = new Map<String, Object>();
     if (cacheConfiguration.IsEnabled__c == false || cacheConfiguration.Id == null) {
       return keyToCacheValue;
     }
 
-    for (CacheValue__mdt declarativeCacheValue : DECLARATIVE_CACHE_VALUES) {
-      if (declarativeCacheValue.Cache__c == cacheConfiguration.Id && declarativeCacheValue.IsEnabled__c == true) {
-        System.Type dataType = System.Type.forName(declarativeCacheValue.DataType__c);
-        Boolean isString = declarativeCacheValue.DataType__c == String.class.getName();
-        Object castedValue = isString ? declarativeCacheValue.Value__c : JSON.deserialize(declarativeCacheValue.Value__c, dataType);
-        keyToCacheValue.put(declarativeCacheValue.Key__c, castedValue);
+    for (CacheValue__mdt configuredCacheValue : CONFIGURED_CACHE_VALUES) {
+      if (configuredCacheValue.Cache__c == cacheConfiguration.Id && configuredCacheValue.IsEnabled__c == true) {
+        System.Type dataType = System.Type.forName(configuredCacheValue.DataType__c);
+        Boolean isString = configuredCacheValue.DataType__c == String.class.getName();
+        Object castedValue = isString ? configuredCacheValue.Value__c : JSON.deserialize(configuredCacheValue.Value__c, dataType);
+        keyToCacheValue.put(configuredCacheValue.Key__c, castedValue);
       }
     }
     return keyToCacheValue;
@@ -1309,19 +1312,19 @@ public without sharing class CacheManager_v8_final_touches {
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;
-    private final TransactionCache transactionCache;
+    private final TransactionCache fallbackTransactionCache;
 
     private PlatformCache(CacheConfiguration__mdt configuration, transactionCache transactionCache, PlatformCachePartitionProxy cachePartitionProxy) {
       this.configuration = configuration;
-      this.transactionCache = transactionCache;
+      this.fallbackTransactionCache = transactionCache;
       this.cachePartitionProxy = cachePartitionProxy;
 
-      this.put(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadConfiguredCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
-      if (this.configuration.IsEnabled__c == false || this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.contains(key);
+      if (this.configuration.IsEnabled__c == false || this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.contains(key);
       } else {
         return this.cachePartitionProxy.contains(key);
       }
@@ -1347,15 +1350,15 @@ public without sharing class CacheManager_v8_final_touches {
     }
 
     public Object get(String key) {
-      if (this.transactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.transactionCache.get(key);
+      if (this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key);
       } else {
         Object value = this.cachePartitionProxy.get(key);
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
-        this.transactionCache.put(key, value);
+        this.fallbackTransactionCache.put(key, value);
         return value;
       }
     }
@@ -1369,7 +1372,7 @@ public without sharing class CacheManager_v8_final_touches {
     }
 
     public Set<String> getKeys() {
-      return this.isAvailable() == true ? this.cachePartitionProxy.getKeys() : this.transactionCache.getKeys();
+      return this.isAvailable() == true ? this.cachePartitionProxy.getKeys() : this.fallbackTransactionCache.getKeys();
     }
 
     public Boolean isAvailable() {
@@ -1390,7 +1393,7 @@ public without sharing class CacheManager_v8_final_touches {
       }
 
       validateKey(key);
-      this.transactionCache.put(key, value);
+      this.fallbackTransactionCache.put(key, value);
 
       if (this.isAvailable() == true && this.isImmutable() == false || this.contains(key) == false) {
         // Platform cache does not support storing null values, so a predefined value is used as a substitute
@@ -1413,7 +1416,7 @@ public without sharing class CacheManager_v8_final_touches {
         return;
       }
 
-      this.transactionCache.remove(key);
+      this.fallbackTransactionCache.remove(key);
       if (this.isAvailable() == true) {
         this.cachePartitionProxy.remove(key);
       }
@@ -1437,10 +1440,8 @@ public without sharing class CacheManager_v8_final_touches {
     private final Cache.Partition platformCachePartition;
 
     protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
-      // Since orgs can customize the platform cache partition (via CacheConfiguration__mdt.PlatformCachePartitionName__c),
-      // some orgs could have problematic configurations (or may have even deleted the referenced partition),
-      // and it seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
-      // The alternative is a runtime exception, which isn't ideal.
+      // If the specified partition name is not found, the platform automatically throws a runtime exception, which isn't ideal.
+      // It seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       try {
         switch on cacheType {
           when ORGANIZATION {
@@ -1521,7 +1522,7 @@ public without sharing class CacheManager_v8_final_touches {
     private TransactionCache(CacheConfiguration__mdt configuration) {
       this.configuration = configuration;
 
-      this.put(loadDeclarativeCacheValues(this.configuration));
+      this.put(loadConfiguredCacheValues(this.configuration));
     }
 
     public Boolean contains(String key) {
@@ -1604,7 +1605,6 @@ public without sharing class CacheManager_v8_final_touches {
     }
   }
 }
-
 ```
 
 ## Wrapping Up

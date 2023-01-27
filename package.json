@@ -1,7 +1,7 @@
 {
   "name": "nebula-cache-manager",
   "version": "1.0.0",
-  "description": "A scalable & configurable cache management system for Apex developers",
+  "description": "A flexible cache management system for Salesforce Apex developers. Built to be scalable & configurable.",
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**",
     "package:aliases:sort": "sfdx bummer:package:aliases:sort",
@@ -27,9 +27,14 @@
   "lint-staged": {
     "**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}": [
       "prettier --write"
-    ],
-    "**/{aura,lwc}/**": [
-      "eslint"
     ]
-  }
+  },
+  "keywords": [
+    "apex",
+    "cache",
+    "cache management",
+    "caching",
+    "platform cache",
+    "salesforce"
+  ]
 }
