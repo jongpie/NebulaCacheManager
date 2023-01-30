@@ -6,9 +6,12 @@ public without sharing class CacheManager_v8_final_touches {
   private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
-  private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization');
-  private static final CacheConfiguration__mdt SESSION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Session');
-  private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction');
+  @TestVisible
+  private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization').clone();
+  @TestVisible
+  private static final CacheConfiguration__mdt SESSION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Session').clone();
+  @TestVisible
+  private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction').clone();
 
   private static Map<PlatformCacheType, PlatformCachePartitionProxy> cacheTypeToMockPartitionProxy = new Map<PlatformCacheType, PlatformCachePartitionProxy>();
 
@@ -99,7 +102,7 @@ public without sharing class CacheManager_v8_final_touches {
 
   private static Map<String, Object> loadConfiguredCacheValues(CacheConfiguration__mdt cacheConfiguration) {
     Map<String, Object> keyToCacheValue = new Map<String, Object>();
-    if (cacheConfiguration.IsEnabled__c == false || cacheConfiguration.Id == null) {
+    if (cacheConfiguration.IsEnabled__c == false) {
       return keyToCacheValue;
     }
 
@@ -136,11 +139,13 @@ public without sharing class CacheManager_v8_final_touches {
     }
 
     public Map<String, Boolean> contains(Set<String> keys) {
-      return this.cachePartitionProxy.contains(keys);
+      Map<String, Boolean> keyToContainsResult = this.cachePartitionProxy.contains(keys);
+      keyToContainsResult.putAll(this.fallbackTransactionCache.contains(keys));
+      return keyToContainsResult;
     }
 
     public Boolean containsAll(Set<String> keys) {
-      Map<String, Boolean> keyToContainsResult = this.cachePartitionProxy.contains(keys);
+      Map<String, Boolean> keyToContainsResult = this.contains(keys);
       if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
         return false;
       }
@@ -169,7 +174,12 @@ public without sharing class CacheManager_v8_final_touches {
     }
 
     public Map<String, Object> get(Set<String> keys) {
-      return this.cachePartitionProxy.get(keys);
+      Map<String, Object> keyToValue = this.cachePartitionProxy.get(keys);
+      if (keyToValue == null) {
+        keyToValue = new Map<String, Object>();
+      }
+      keyToValue.putAll(this.fallbackTransactionCache.get(keys));
+      return keyToValue;
     }
 
     public Map<String, Object> getAll() {
@@ -177,7 +187,12 @@ public without sharing class CacheManager_v8_final_touches {
     }
 
     public Set<String> getKeys() {
-      return this.isAvailable() == true ? this.cachePartitionProxy.getKeys() : this.fallbackTransactionCache.getKeys();
+      Set<String> keys = this.cachePartitionProxy.getKeys();
+      if (keys == null) {
+        keys = new Set<String>();
+      }
+      keys.addAll(this.fallbackTransactionCache.getKeys());
+      return keys;
     }
 
     public Boolean isAvailable() {
@@ -280,31 +295,16 @@ public without sharing class CacheManager_v8_final_touches {
       return keyToContainsResult;
     }
 
-    public Boolean containsAll(Set<String> keys) {
-      Map<String, Boolean> keyToContainsResult = this.platformCachePartition?.contains(keys);
-      if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
-        return false;
-      }
-
-      for (String key : keyToContainsResult.keySet()) {
-        Boolean containsKey = keyToContainsResult.get(key);
-        if (containsKey == false) {
-          return false;
-        }
-      }
-      return true;
-    }
-
     public virtual Object get(String key) {
       return this.platformCachePartition?.get(key);
     }
 
     public virtual Map<String, Object> get(Set<String> keys) {
-      return this.isAvailable() == false ? new Map<String, Object>() : this.platformCachePartition.get(keys);
+      return this.platformCachePartition?.get(keys);
     }
 
     public virtual Set<String> getKeys() {
-      return this.isAvailable() == false ? new Set<String>() : this.platformCachePartition.getKeys();
+      return this.platformCachePartition?.getKeys();
     }
 
     public virtual Boolean isAvailable() {
