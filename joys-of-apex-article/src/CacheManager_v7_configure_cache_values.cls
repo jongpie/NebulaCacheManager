@@ -1,7 +1,6 @@
 public without sharing class CacheManager_v7_configure_cache_values {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
-
   @TestVisible
   private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
@@ -91,7 +90,7 @@ public without sharing class CacheManager_v7_configure_cache_values {
       if (configuredCacheValue.Cache__c == cacheConfiguration.Id && configuredCacheValue.IsEnabled__c == true) {
         System.Type dataType = System.Type.forName(configuredCacheValue.DataType__c);
         Boolean isString = configuredCacheValue.DataType__c == String.class.getName();
-        Object castedValue = isString ? configuredCacheValue.Value__c : JSON.deserialize(configuredCacheValue.Value__c, dataType);
+        Object castedValue = isString ? configuredCacheValue.Value__c : System.JSON.deserialize(configuredCacheValue.Value__c, dataType);
         keyToCacheValue.put(configuredCacheValue.Key__c, castedValue);
       }
     }

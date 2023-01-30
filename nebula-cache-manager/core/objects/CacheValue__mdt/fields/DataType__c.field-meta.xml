@@ -4,7 +4,7 @@
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <inlineHelpText
-  >The Apex type of the provided value. This can be an valid Apex type that supports JSON deserialization, such as a primitive data type like String, Boolean, Datetime, or a custom Apex class</inlineHelpText>
+  >The Apex type of the provided value. This can be any valid Apex type that supports JSON deserialization, such as a primitive data type like String, Boolean, Datetime, or a custom Apex class</inlineHelpText>
     <label>Data Type</label>
     <length>255</length>
     <required>true</required>

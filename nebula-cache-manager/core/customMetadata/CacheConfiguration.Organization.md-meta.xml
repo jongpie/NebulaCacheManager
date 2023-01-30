@@ -16,7 +16,7 @@
     </values>
     <values>
         <field>PlatformCachePartitionName__c</field>
-        <value xsi:type="xsd:string">FallbackPartition</value>
+        <value xsi:type="xsd:string">CacheManagerPartition</value>
     </values>
     <values>
         <field>PlatformCacheTimeToLive__c</field>

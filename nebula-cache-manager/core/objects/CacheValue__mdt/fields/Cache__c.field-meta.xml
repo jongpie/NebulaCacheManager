@@ -6,7 +6,7 @@
     <label>Cache</label>
     <referenceTo>CacheConfiguration__mdt</referenceTo>
     <relationshipLabel>Cache Values</relationshipLabel>
-    <relationshipName>Cache_Values</relationshipName>
+    <relationshipName>CacheValues</relationshipName>
     <required>true</required>
     <type>MetadataRelationship</type>
     <unique>false</unique>

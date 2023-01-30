@@ -2,6 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>IsImmutable__c</fullName>
     <defaultValue>false</defaultValue>
+    <description
+  >Indicates if cache values can be changed once set (IsImmutable__c = false) or if existing values are locked until they expire (IsImmutable__c = true)</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <label>Cache Is Immutable</label>

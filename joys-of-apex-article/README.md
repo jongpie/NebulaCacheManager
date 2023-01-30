@@ -645,7 +645,6 @@ The `PlatformCache` and `TransactionCache` inner classes below now both have the
 public without sharing class CacheManager_v6_configurations {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
-
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
   @TestVisible
@@ -909,7 +908,6 @@ Now that we have a configured place to store cached data, let's incorporate it i
 public without sharing class CacheManager_v7_configure_cache_values {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
-
   @TestVisible
   private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
@@ -999,7 +997,7 @@ public without sharing class CacheManager_v7_configure_cache_values {
       if (configuredCacheValue.Cache__c == cacheConfiguration.Id && configuredCacheValue.IsEnabled__c == true) {
         System.Type dataType = System.Type.forName(configuredCacheValue.DataType__c);
         Boolean isString = configuredCacheValue.DataType__c == String.class.getName();
-        Object castedValue = isString ? configuredCacheValue.Value__c : JSON.deserialize(configuredCacheValue.Value__c, dataType);
+        Object castedValue = isString ? configuredCacheValue.Value__c : System.JSON.deserialize(configuredCacheValue.Value__c, dataType);
         keyToCacheValue.put(configuredCacheValue.Key__c, castedValue);
       }
     }
@@ -1205,7 +1203,6 @@ TODO discuss adding new methods to `Cacheable` interface to provide Apex develop
 public without sharing class CacheManager_v8_final_touches {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
-
   @TestVisible
   private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
@@ -1314,7 +1311,7 @@ public without sharing class CacheManager_v8_final_touches {
       if (configuredCacheValue.Cache__c == cacheConfiguration.Id && configuredCacheValue.IsEnabled__c == true) {
         System.Type dataType = System.Type.forName(configuredCacheValue.DataType__c);
         Boolean isString = configuredCacheValue.DataType__c == String.class.getName();
-        Object castedValue = isString ? configuredCacheValue.Value__c : JSON.deserialize(configuredCacheValue.Value__c, dataType);
+        Object castedValue = isString ? configuredCacheValue.Value__c : System.JSON.deserialize(configuredCacheValue.Value__c, dataType);
         keyToCacheValue.put(configuredCacheValue.Key__c, castedValue);
       }
     }
