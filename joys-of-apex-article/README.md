@@ -12,7 +12,7 @@ date: ''
 
 Since I last [wrote an article for Joys of Apex](https://www.jamessimone.net/blog/joys-of-apex/whats-new-with-nebula-logger/), TODO
 
-When it comes to developing in Apex, we need to always be aware of any platform limitations. And often, data that we need to use in Apex can come with overhead to retrieve or generate. In particular, I've found myself especially concerned with 3 limits:
+When it comes to developing in Apex, we need to always be aware of any platform limitations. And often, data that we need to use in Apex can come with overhead to retrieve or generate it. In particular, I've found myself especially concerned with 3 limits:
 
 1. **SOQL query limits**: Apex has a limit on the number of queries you can execute per transaction. Furthermore, queries on large objects (with millions of rows of data) can be slow, which slows down other parts of the system for users. In some situations, orgs can have [their org throttled](https://help.salesforce.com/s/articleView?id=000384939&type=1) due SOQL query issues (among other reasons), so ensuring your Apex code effectively utilizes queries in LDV orgs can become crucial.
 2. **CPU time limits**: Some data is generated in-memory by Apex code, which can also slow down other parts of the system for users. Sometimes, the data doesn't need to be stored in a custom object (which would consume your org's storage limits), but the data itself may not change frequently, so caching the data could be useful optimization.
@@ -200,8 +200,7 @@ public class SomeClass {
 
 The `CacheManager` class now provides a way for managing the transaction cache, and the underlying data structure has been safely tucked away from consumers of `CacheManager`. Developers can add, update, retrieve & remove cached data as needed via Apex. But fundamentally, the transaction cache has a limitation - the cached data only lasts for the life of the transaction, so every Apex transaction (that uses the cached data) will still have overhead of querying or generating data & adding it to the cache. By leveraging platform cache, we can start caching data across Apex's transaction boundaries.
 
-<!-- TODO add details about how much platform cache allocation is included in orgs by default  -->
-<!-- It's important to note that orgs have XX platform cache space included  -->
+TODO add details about how much platform cache allocation is included in orgs by default: It's important to note that orgs have XX platform cache space included
 
 TODO walk through creating a platform cache partition (with screenshots)
 
@@ -635,9 +634,12 @@ Each record now provides an admin-friendly way to customize the caching system.
 
 ![CacheConfiguration__mdt Organization Record](cache-configuration-organization-record.png)
 
-There's just one important step left - we need to incorporate new `CacheConfiguration__mdt` object into the `CacheManager` class.
+There's just one important step left - we need to incorporate new `CacheConfiguration__mdt` object into the `CacheManager` class. The first step is to expand the `Cacheable` interface to have 2 new methods that are driven by the `CacheConfiguration__mdt` record:
 
-# TODO add summary about how `CacheConfiguration__mdt` has been incorporated
+1. `Boolean isEnabled()` - indicates if the cache is enabled (and data should be cached) or disabled (and no data should be cached)
+2. `Boolean isImmutable()` - indicates if a cache value can be changed once it's been set. This gives developers to control if the first or last cache value specified is used when `put(String, Object)` is called.
+
+The `PlatformCache` and `TransactionCache` inner classes below now both have these 2 new methods, and other existing methods have been updated to check `isEnabled()` and `isImmutable()` before executing existing logic.
 
 ```java
 public without sharing class CacheManager_v6_configurations {
@@ -646,8 +648,11 @@ public without sharing class CacheManager_v6_configurations {
 
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
+  @TestVisible
   private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization');
+  @TestVisible
   private static final CacheConfiguration__mdt SESSION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Session');
+  @TestVisible
   private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction');
 
   private enum PlatformCacheType {
@@ -909,8 +914,11 @@ public without sharing class CacheManager_v7_configure_cache_values {
   private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
+  @TestVisible
   private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization');
+  @TestVisible
   private static final CacheConfiguration__mdt SESSION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Session');
+  @TestVisible
   private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction');
 
   private enum PlatformCacheType {
@@ -1179,18 +1187,19 @@ public without sharing class CacheManager_v7_configure_cache_values {
 
 With these changes in place, the `CacheManager` class now automatically loads any `CacheValue__mdt` records for each cache.
 
-## 7. Scope-Creep Part 3: Adding Some Handy Methods
+## 7. Scope-Creep Part 3: Adding Some Handy Methods for Bulk Operations
 
+At this point, we have a pretty powerful caching system, and we certainly could leave things as-is. But I want to provide some additional methods to help Apex developers - by adding in some additional methods to the `Cacheable` interface that support bulk operations, Apex developers can more easily leverage the cache management system
 TODO discuss adding new methods to `Cacheable` interface to provide Apex developers more control of the caching system
 
-1. `Map<String, Boolean> contains(Set<String> keys);`
-2. `Boolean containsAll(Set<String> keys);`
-3. `Map<String, Object> get(Set<String> keys);`
-4. `Map<String, Object> getAll();`
-5. `Set<String> getKeys();`
-6. `void put(Map<String, Object> keyToValue)`
-7. `void remove(Set<String> keys)`
-8. `void removeAll()`
+1. `Map<String, Boolean> contains(Set<String> keys)` - for the specified keys, a `Map<String, Boolean>` is returned that indicates if each of the specified keys is included in the cache
+2. `Boolean containsAll(Set<String> keys)` - for the specified keys, indicates if all of the keys are included in the cache (`true`). If 1 or more key is not found in the cache, this method returns `false`
+3. `Map<String, Object> get(Set<String> keys)` - returns a `Map<String, Object>` containing all of the specified keys, along with their cached values (or null, if one of the keys has not been cached)
+4. `Map<String, Object> getAll()` - returns a `Map<String, Object>` containing all of the cached keys & values in the cache
+5. `Set<String> getKeys()` - returns all of the keys currently in the cache
+6. `void put(Map<String, Object> keyToValue)` - provides a bulk way to add several keys & values to a cache
+7. `void remove(Set<String> keys)` - provies a bulk way to remove several keys in a cache
+8. `void removeAll()` - removes all keys in the cache
 
 ```java
 public without sharing class CacheManager_v8_final_touches {
@@ -1606,6 +1615,8 @@ public without sharing class CacheManager_v8_final_touches {
   }
 }
 ```
+
+TODO add section summary
 
 ## Wrapping Up
 
