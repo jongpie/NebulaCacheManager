@@ -1,6 +1,6 @@
 ---
 title: 'Joys of Apex: Iteratively Building a Flexible Caching System for Apex'
-description: 'TODO'
+description: 'Learn about caching data in Apex, and how to leverage static variables & platform cache to build a caching management system that can help improve the performance of your Apex code'
 keywords: 'salesforce.com, SFDC, apex, caching, platform cache'
 image: './joys-of-apex.png'
 date: ''
@@ -8,26 +8,26 @@ date: ''
 
 # Iteratively Building a Flexible Caching System
 
-## TODO add intro paragraph here
-
-Since I last [wrote an article for Joys of Apex](https://www.jamessimone.net/blog/joys-of-apex/whats-new-with-nebula-logger/), TODO
-
 When it comes to developing in Apex, we need to always be aware of any platform limitations. And often, data that we need to use in Apex can come with overhead to retrieve or generate it. In particular, I've found myself especially concerned with 3 limits:
 
 1. **SOQL query limits**: Apex has a limit on the number of queries you can execute per transaction. Furthermore, queries on large objects (with millions of rows of data) can be slow, which slows down other parts of the system for users. In some situations, orgs can have [their org throttled](https://help.salesforce.com/s/articleView?id=000384939&type=1) due SOQL query issues (among other reasons), so ensuring your Apex code effectively utilizes queries in LDV orgs can become crucial.
-2. **CPU time limits**: Some data is generated in-memory by Apex code, which can also slow down other parts of the system for users. Sometimes, the data doesn't need to be stored in a custom object (which would consume your org's storage limits), but the data itself may not change frequently, so caching the data could be useful optimization.
-3. **Callout limits**: for some data lives outside of Salesforce, and Salesforce developers need to retrieve it within Apex. There are not only limits on the number of callouts per transaction, but also limits on when you can make a callout in Apex - you cannot make a callout after running a DML statement, which can make Apex development even more challenging for developers that need to implement tight integrations with external systems.
+2. **CPU time limits**: Some data is generated in-memory by Apex code, which can also slow down other parts of the system for users. Sometimes, the data doesn't need to be stored in a custom object (which would consume your org's storage limits), but the data itself may not change frequently, so caching the data could be a useful optimization.
+3. **Callout limits**: for many Salesforce orgs, not all data lives within Salesforce - we often need to integrate with external systems to retrieve data that lives outside of Salesforce, using callouts in Apex (typically using the classes `Http`, `HttpRequest`, and `HttpResponse`). And when making callouts in Apex, there are limits on both the number of callouts per transaction, as well as limits on when you can make a callout in Apex - you cannot make a callout after running a DML statement, which can make Apex development even more challenging for developers that need to implement tight integrations with external systems.
 
-Recently when working on [Nebula Logger](https://nebulalogger.com), there were several areas that caused issues for customer orgs with large data volumes (LDV). One of Nebula Logger's features is that it automatically logs data about the current `Organization`, the current `User`, their `AuthSession` and other contexual data. But some of this data requires SOQL queries, which can introduce 2 issues:
+Most recently, I ran into some of these issues when working on [Nebula Logger](https://nebulalogger.com) - there were several areas in the codebase that caused issues for customer orgs with large data volumes (LDV). This was caused by one of Nebula Logger's features, where it automatically logs data about the current `Organization`, the current `User`, their `AuthSession` and other contexual data. But some of this data requires SOQL queries, which can introduce 2 issues:
 
 1. **SOQL query limits**: although most of Nebula Logger's queries run async, some of them run synchronously, which counts against the same limit that Apex developers are using within their own code. This is done so that the data can be set on the `LogEntryEvent__e` platform events, which several orgs use in external systems that [subscribe to the platform events using the Pub/Sub API](https://developer.salesforce.com/docs/platform/pub-sub-api/overview). So, in order to set the fields on the platform events, querying the data has to be done synchronously. These queries unfortunately count towards the same transactional limits used by other Apex in the org, such as [`Limits.getQueries()`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_limits.htm#apex_System_Limits_getQueries) and [`Limits.getQueryRows()`](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_limits.htm#apex_System_Limits_getQueryRows).
 2. **Database throttling in orgs with large data volume (LDV)**: for orgs that have millions of rows of data in several objects, every query needs to be as performant as possible - and if not needed, then don't run unnecessary queries. For Nebula Logger, some orgs still want the data to be _occassionally_ queried (as it provides more context for logging data) - but for several of the queries (like the `Profile` for the current user), the queried data typically doesn't change frequently, so querying the data in every transaction could definitely be seen as unnecessary.
 
-Over the course of about a month, I implemented some enhancements to help alleviate some of the slowness by implementing [a caching system](https://github.com/jongpie/NebulaLogger/blob/v4.9.9/nebula-logger/core/main/configuration/classes/LoggerCache.cls). The caching system not only helped with Nebula Logger's performance, but it also laid the groundwork for a standalone cache management system that I've released as another open source project: [Nebula Cache Manager](https://github.com/jongpie/NebulaCacheManager)
+Over the course of a few months, I implemented some enhancements to help alleviate some of the slowness by implementing [a caching system](https://github.com/jongpie/NebulaLogger/blob/v4.9.10/nebula-logger/core/main/configuration/classes/LoggerCache.cls). The caching system not only helped with Nebula Logger's performance, but it also laid the groundwork for a standalone cache management system that I've released as another open source project: [Nebula Cache Manager](https://github.com/jongpie/NebulaCacheManager)
 
 And in today's article, I'd like to walk through some of the thoughts & iterations I made when implementing the system. We'll start by implementing an incredibly basic caching system in only 3 lines of code - and by the end, we'll have a flexible caching system that's scalable & configurable, using 400+ lines of Apex code & 2 custom metadata types.
 
-## Prerequisite: Understanding Apex Static Variables
+## Prerequesites: Understanding Some Platform Essentials
+
+In order to build a cache management system, it's important to understand some nuances of coding in Apex. This will let us know what problem we're solving, and
+
+### Prerequisite: Understanding the Problem with Apex Static Variables
 
 Before we build a cache system, it's important to understand how Apex handles static variables, as well as how transactions impact them. Luckily, it doesn't take much code to demonstrate some of the relevant behavior. In this example, I'm querying the `Group` object, which stores [queues](https://www.salesforceben.com/everything-you-need-to-know-about-salesforce-queues/). If you have ever tried to automatically assign a record to a queue, you may have already found that queue data has to be queried - there are no built-in Apex classes or methods that can be used to retrieve this data. And typically, queues do not change frequently, which makes them a great candidate for data to cache.
 
@@ -46,18 +46,20 @@ public class SomeClass {
 }
 ```
 
-Once a static variable is set in Apex, its value will remain for the duration of the transaction (or until Apex code changes the value). As described in the [Apex Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_static.htm):
+Once a static variable is set in Apex, its value will remain for the duration of the transaction, or until Apex code changes the value. As described in the [Apex Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_static.htm):
 
 > "A static variable is static only within the scope of the Apex transaction. It’s not static across the server or the entire organization."
 
-This has 2 implications for caching data using only static variables:
+Although not currently mentioned in the Apex Developer Guide link above, it's worth noting that as part of the Spring '23 release, there is now 1 exception to this - [static variables are now automatically reset between groups of platform event–triggered Flow interviews in the same transaction](https://help.salesforce.com/s/articleView?id=release-notes.rn_apex_static_variables_interviews.htm&release=242&type=5), but for the sake of this article, we'll ignore this exception)
+
+Ignoring the one exception, the behavior of static variables in Apex has 2 implications for caching data using only static variables:
 
 1. Good: Using static variables is a great way to have a centralized place to store data that (typically) does not change during a single transaction
 2. Bad: Using static variables still requires (in this case) that a query runs in every transaction in order to populate the data.
 
 If you have multiple Apex classes querying the same data (in this case, queues), you can reduce your number of queries to 1 by storing the queried data in a static variable that other classes can reference. This alone can be a great improvement in some orgs - I've seen orgs where multiple classes are using queue data, but each class runs its own query, resulting in duplicate/similar queries that consume the SOQL query limits. By centralizing the data into 1 static variable, and updating other classes to use the static variable, we can reduce multiple SOQL queries into 1 query per transaction.
 
-## Prerequesites: Platform Cache Crash Course
+### Prerequesites: Platform Cache Crash Course
 
 Although static variables can be used to help reduce overhead (such as queries or computing data) in a transaction, they only last for the duration of the transaction, and still require _some_ overhead to populate the static variables in every transaction. Ideally, we should have a way to cache data across transactions - this is where Salesforce's [platform cache](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_cache_namespace_overview.htm) can help.
 
@@ -68,12 +70,16 @@ Platform cache is an additional layer available in Apex that can be used to cach
   1. **Organization cache**: data cached in the org partition is available in Apex for any user, which provides a great place to cache data that _is not_ user-specific.
   2. **Session cache**: data cached in the org partition is available in Apex a specific session for a specific user, which provides a great place to cache data that _is_ user-specific.
 
-- The [Cache namespace](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_namespace_cache.htm) has several classes that can be used to interact with platform cache. When populating & retrieving data from platform cache, Apex developers can specify which kind of cache they want to interact with
+- The [Cache namespace in Apex](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_namespace_cache.htm) has several classes that can be used to interact with platform cache. When populating & retrieving data from platform cache, Apex developers can specify which kind of cache they want to interact use (organization or session)
 - `null` values are not supported in platform cache
-- There are limitations on what `String` values can be used for keys within platform cache.
+- There are limitations on what `String` values can be used for keys within platform cache - they must be alphanumeric, you cannot use spaces, dashes, hyphens, or other special characters
 - Exceptions are automatically thrown by Salesforce if there are configuration issues
   - An exception is thrown if the specified partition name doesn't exist
   - An exception is thrown if the specified partition doesn't have any available storage space
+- Most Salesforce editions include some platform cache allocation, with the ability to purchase more space if needed. Based on [this Trailhead module](https://trailhead.salesforce.com/content/learn/modules/platform_cache/platform_cache_get_started), these are the current allocations included with each Salesforce edition:
+  - Enterprise Edition: 10 MB by default
+  - Unlimited Edition: 30 MB by default
+  - Performance Edition: 30 MB by default
 
 Certainly, this is not _everything_ about how platform cache works, but it's a good summary of the core features. If you'd like to learn more about platform cache, Salesforce has [a 'Platform Cache Basics' Trailhead module](https://trailhead.salesforce.com/content/learn/modules/platform_cache) with some hands-on activities.
 
@@ -101,16 +107,22 @@ With these changes in place, we now have a way to cache & retrieve queues across
 We can take this further.
 It's time to build a centralized cache management system!
 
-## 1. Start Small: Implementing A Simple Transaction Cache
+## Building a Cache Management System in 7 Steps
 
-Now that we've discussed how constants & static variables work in Apex, let's start there. We need a fancy caching system in Apex - it should:
+Now that we've reviewed how Apex handles static variables (and their limitations) and we've done a quick crash course on platform cache, let's start building a cache management system. We need a fancy caching system in Apex that should ultimately have several features:
 
 - Provide Apex developers with the ability to add, retrieve, update, and clear cached data
 - Support caching of any Apex data type
 - Leverage a "key" name (`String`) as a way to add & retrieve cached data
   - Inherently, the key must also be unique, so the cache system should enforce uniqueness
+- Have the ability to cache data within a single transaction or across multiple transactions
+- Handles some of the oddities of dealing with Platform Cache, such as:
+  - Testability of Platform Cache can be challenging
+  - No support for caching null values
 
-In the words of Kent Beck, "start small or not at all." And we can implement all of these features, using only 3 lines of code - we really can't get any smaller than this.
+### 1. Start Small: Implementing A Simple Transaction Cache
+
+With the info we reviewed about how constants & static variables work in Apex, let's start with a simple constant, and we'll expand from there. In the words of Kent Beck, "start small or not at all." And we can implement all of these features, using only 3 lines of code - we really can't get any smaller than this.
 
 ```java
 public without sharing class CacheManager_v1_super_simple {
@@ -138,7 +150,7 @@ public class SomeClass {
 
 This is a good starting point of a caching system, even if it's limited. Any Apex class in your org can now use a `String` key to cache any Apex data type - in the process, we're using some of Salesforce's heap size limits, but this seems like a good compromise for the sake of providing a centralized cache management system.
 
-## 2. Abstracting The Transaction Cache Implementation
+### 2. Abstracting The Transaction Cache Implementation
 
 The 3-line version of `CacheManager` is effective, but the implementation & the underlying data structure (`Map<String, Object>`) are currently the same thing - there's no abstraction at the moment, which can make it difficult to add additional safeguards & functionality into the caching system. Let's take the `CacheManager` class a step further, and we'll add a new inner class called `TransactionCache` to abstract away some of the inner-workings.
 
@@ -196,13 +208,9 @@ public class SomeClass {
 }
 ```
 
-## 3. Caching Data Across Transactions, Using Platform Cache
+### 3. Caching Data Across Transactions, Using Platform Cache
 
 The `CacheManager` class now provides a way for managing the transaction cache, and the underlying data structure has been safely tucked away from consumers of `CacheManager`. Developers can add, update, retrieve & remove cached data as needed via Apex. But fundamentally, the transaction cache has a limitation - the cached data only lasts for the life of the transaction, so every Apex transaction (that uses the cached data) will still have overhead of querying or generating data & adding it to the cache. By leveraging platform cache, we can start caching data across Apex's transaction boundaries.
-
-TODO add details about how much platform cache allocation is included in orgs by default: It's important to note that orgs have XX platform cache space included
-
-TODO walk through creating a platform cache partition (with screenshots)
 
 Let's incorporate Platform Cache into the `CacheManager` class - this will provide 3 types of cache
 
@@ -400,7 +408,7 @@ And because all 3 of these methods return an instance of the interface `CacheMan
 
 Furthermore, we've handled one quirk with platform cache - we've added support for `null` values (even though platform cache does not support `null` values) by using a substitute `String`, stored in the constant `PLATFORM_CACHE_NULL_VALUE`. Now, if Apex developers need to cache `null`, the `CacheManager` class handles substituting the placeholder `String` - it happens seamlessly for Apex developers.
 
-## 4. Supporting Orgs That Don't Have Platform Cache Available
+### 4. Supporting Orgs That Don't Have Platform Cache Available
 
 When implementing Nebula Logger's caching system, I ran into some additional limitations with platform cache - in orgs that do not have platform cache partition space allocated, adding data to a cache partition would result in an exception being thrown. For many orgs, this may not be an issue - if you know that you're using platform cache in your org, then you simply need to configure a cache partition, and you're ready to go. But there are a couple situations that I wanted to support:
 
@@ -610,11 +618,11 @@ With the new class `PlatformCachePartitionProxy` in place, the `CacheManager` cl
 2. Gracefully handle cache partitions that do not have storage allocated
 3. Improve testability by provide a mock version of the `PlatformCachePartitionProxy` class that's used during test execution
 
-At this point, this is effectively the same cache management system used internally by [Nebula Logger](https://github.com/jongpie/NebulaLogger/blob/v4.9.9/nebula-logger/core/main/configuration/classes/LoggerCache.cls), which has already provided some great improvements in several orgs. But if we want to build a standalone caching system, we can add several additional features to make it a highly scalable & configurable.
+At this point, this is effectively the same cache management system used internally by [Nebula Logger](https://github.com/jongpie/NebulaLogger/blob/v4.9.10/nebula-logger/core/main/configuration/classes/LoggerCache.cls), which has already provided some great improvements in several orgs. But if we want to build a standalone caching system, we can add several additional features to make it a highly scalable & configurable.
 
-## 5. Scope-Creep Part 1: Configuredly Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
+### 5. Scope-Creep Part 1: Configuredly Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
 
-When building reusable tools - espcially in Salesforce - I think it can be incredibly powerful to provide configurable controls that can be updated configuredly by admins & developers. In this case, I want to be able to configure several details about the caching system:
+When building reusable tools - espcially in Salesforce - I think it can be incredibly powerful to provide configurable controls that can be updated declaratively by admins & developers. In this case, I want to be able to configure several details about the caching system:
 
 1. Be able to enable/disable the 3 different cache types (transaction cache, org platform cache, and session platform cache)
 2. Be able to configure the name of the platform cache partition used by the org cache & session cache
@@ -892,7 +900,7 @@ public without sharing class CacheManager_v6_configurations {
 
 Although this change involves modifying nearly every method within `CacheManager`, the changes are seamless to Apex developers, and do not impact the way that the caching system is used.
 
-## 6. Scope-Creep Part 2: Configuredly Populating Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
+### 6. Scope-Creep Part 2: Configuredly Populating Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
 
 We now have a strong foundation for caching data, and we can control the behavior of the caching system using the new `CacheConfiguration__mdt` custom metadata type. But one limitation with the current system: it still requires a developer to write code to populate/update the cached value. But what if some data doesn't change very frequently (and thus, can be cached for longer than the duration supported by platform cache)? If an urgent issue comes up & the Apex code that caches the data is incorrect, do developers need to immediately deploy a hotfix to correct it?
 
@@ -1185,10 +1193,9 @@ public without sharing class CacheManager_v7_configure_cache_values {
 
 With these changes in place, the `CacheManager` class now automatically loads any `CacheValue__mdt` records for each cache.
 
-## 7. Scope-Creep Part 3: Adding Some Handy Methods for Bulk Operations
+### 7. Scope-Creep Part 3: Adding Some Handy Methods for Bulk Operations
 
-At this point, we have a pretty powerful caching system, and we certainly could leave things as-is. But I want to provide some additional methods to help Apex developers - by adding in some additional methods to the `Cacheable` interface that support bulk operations, Apex developers can more easily leverage the cache management system
-TODO discuss adding new methods to `Cacheable` interface to provide Apex developers more control of the caching system
+At this point, we have a pretty powerful caching system, and we certainly could leave things as-is. But I want to provide some additional methods to help Apex developers - by adding in some additional methods to the `Cacheable` interface that support bulk operations, Apex developers can more easily leverage the cache management system. We'll add 8 new methods to our `Cacheable` interface:
 
 1. `Map<String, Boolean> contains(Set<String> keys)` - for the specified keys, a `Map<String, Boolean>` is returned that indicates if each of the specified keys is included in the cache
 2. `Boolean containsAll(Set<String> keys)` - for the specified keys, indicates if all of the keys are included in the cache (`true`). If 1 or more key is not found in the cache, this method returns `false`
@@ -1198,6 +1205,8 @@ TODO discuss adding new methods to `Cacheable` interface to provide Apex develop
 6. `void put(Map<String, Object> keyToValue)` - provides a bulk way to add several keys & values to a cache
 7. `void remove(Set<String> keys)` - provies a bulk way to remove several keys in a cache
 8. `void removeAll()` - removes all keys in the cache
+
+Below, these new methods have been added to the `Cacheable` interface, as well as the private inner classes `PlatformCache` and `TransactionCache`
 
 ```java
 public without sharing class CacheManager_v8_final_touches {
@@ -1613,17 +1622,12 @@ public without sharing class CacheManager_v8_final_touches {
 }
 ```
 
-TODO add section summary
+With these new methods in place, we haven't necessarily added new concepts - the cache management system is still providing ways for the same operations of adding, retrieving, updating, and removing data in the cache. But the new methods make it simpler for developers to work with cached data in bulk, which can help reduce the lines of code needed to leverage the cache management system. And for now, this seems like a great stopping point for the first release.
 
 ## Wrapping Up
 
-TODO add example usage of all the cache types
+At this point, we've not only implemented the original list of goals - we've also scope creeped a bit to add configurable controls & additional helper methods for Apex developers. And by starting incredibly small (with only 3 lines of code) and layering in new features, we were able to iteratively expand the functionality to get to the final version.
 
-### TODO When To Use Cache
+And whether you need to use a cache management system in your own org, or you just want to see how to iteratively write code in Apex, I hope this has been informative for you - certainly, I had a lot of fun working on this.
 
-TODO
-
-### TODO When To _NOT_ Use Cache
-
-- Casting the cached data adds overhead
-  - TODO add snippet & output of the different in using `static final List<Profile> CACHED_PROFILES` vs calling `(List<Profile>) CacheManager.transactionCache.get('cachedProfiles);` multiple times in 1 transaction (using a loop of 500)
+A huge thanks again to James Simone for his help with the original implementation in [Nebula Logger](https://github.com/jongpie/NebulaLogger) & the new standalone version [Nebula Cache Manager](https://github.com/jongpie/NebulaCacheManager)!

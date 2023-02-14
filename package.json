@@ -5,8 +5,8 @@
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**",
     "package:aliases:sort": "sfdx bummer:package:aliases:sort",
-    "package:version:create:nonamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (no namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30",
-    "package:version:create:withnamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (Nebula namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30",
+    "package:version:create:nonamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (no namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30 && prettier --write sfdx-project.json",
+    "package:version:create:withnamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (Nebula namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30 && prettier --write sfdx-project.json",
     "scan:apex": "sfdx scanner:run --pmdconfig ./config/linters/pmd-ruleset.xml --target ./nebula-cache-manager/ --engine pmd --severity-threshold 3",
     "test:apex": "sfdx force:apex:test:run --verbose --testlevel RunLocalTests --wait 30 --resultformat human --codecoverage --detailedcoverage --outputdir ./test-coverage/apex",
     "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
@@ -22,7 +22,8 @@
     "husky": "^7.0.4",
     "lint-staged": "^12.3.7",
     "prettier": "^2.6.0",
-    "prettier-plugin-apex": "^1.10.0"
+    "prettier-plugin-apex": "^1.10.0",
+    "sfdx-cli": "^7.185.0"
   },
   "lint-staged": {
     "**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}": [

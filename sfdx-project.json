@@ -7,8 +7,8 @@
   "packageDirectories": [
     {
       "package": "Nebula Cache Manager (no namespace)",
-      "path": "nebula-cache-manager/core",
-      "definitionFile": "./config/base-scratch-def.json",
+      "path": "./nebula-cache-manager/core/",
+      "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
       "versionNumber": "1.0.0.0",
       "versionName": "Initial Release",
       "versionDescription": "Initial release of new package",
@@ -17,8 +17,8 @@
     },
     {
       "package": "Nebula Cache Manager (Nebula namespace)",
-      "path": "./nebula-cache-manager/core",
-      "definitionFile": "./config/base-scratch-def.json",
+      "path": "./nebula-cache-manager/core/",
+      "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
       "versionNumber": "1.0.0.0",
       "versionName": "Initial Release",
       "versionDescription": "Initial release of new package",
@@ -26,15 +26,11 @@
       "default": false
     },
     {
-      "path": "./nebula-cache-manager/extra-tests",
+      "path": "./nebula-cache-manager/recipes/",
       "default": true
     },
     {
-      "path": "./nebula-cache-manager/recipes",
-      "default": false
-    },
-    {
-      "path": "./joys-of-apex-article/src",
+      "path": "./joys-of-apex-article/src/",
       "default": false
     }
   ],
@@ -45,8 +41,8 @@
   },
   "packageAliases": {
     "Nebula Cache Manager (Nebula namespace)": "0Ho5Y000000fxvlSAA",
-    "Nebula Cache Manager (Nebula namespace)@1.0.0-0": "04t5Y0000023RDgQAM",
+    "Nebula Cache Manager (Nebula namespace)@1.0.0-0": "04t5Y0000015n1RQAQ",
     "Nebula Cache Manager (no namespace)": "0Ho5Y000000fxvqSAA",
-    "Nebula Cache Manager (no namespace)@1.0.0-0": "04t5Y0000023RDbQAM"
+    "Nebula Cache Manager (no namespace)@1.0.0-0": "04t5Y0000015n1WQAQ"
   }
 }
