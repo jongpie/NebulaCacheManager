@@ -25,9 +25,7 @@ And in today's article, I'd like to walk through some of the thoughts & iteratio
 
 ## Prerequesites: Understanding Some Platform Essentials
 
-In order to build a cache management system, it's important to understand some nuances of coding in Apex. This will let us know what problem we're solving, and
-
-### Prerequisite: Understanding the Problem with Apex Static Variables
+### Understanding the Problem with Apex Static Variables
 
 Before we build a cache system, it's important to understand how Apex handles static variables, as well as how transactions impact them. Luckily, it doesn't take much code to demonstrate some of the relevant behavior. In this example, I'm querying the `Group` object, which stores [queues](https://www.salesforceben.com/everything-you-need-to-know-about-salesforce-queues/). If you have ever tried to automatically assign a record to a queue, you may have already found that queue data has to be queried - there are no built-in Apex classes or methods that can be used to retrieve this data. And typically, queues do not change frequently, which makes them a great candidate for data to cache.
 
@@ -50,7 +48,7 @@ Once a static variable is set in Apex, its value will remain for the duration of
 
 > "A static variable is static only within the scope of the Apex transaction. It’s not static across the server or the entire organization."
 
-Although not currently mentioned in the Apex Developer Guide link above, it's worth noting that as part of the Spring '23 release, there is now 1 exception to this - [static variables are now automatically reset between groups of platform event–triggered Flow interviews in the same transaction](https://help.salesforce.com/s/articleView?id=release-notes.rn_apex_static_variables_interviews.htm&release=242&type=5), but for the sake of this article, we'll ignore this exception)
+Although not currently mentioned in the Apex Developer Guide link above, it's worth noting that as part of the Spring '23 release, there is now 1 exception to this - [static variables are now automatically reset between groups of platform event–triggered Flow interviews in the same transaction](https://help.salesforce.com/s/articleView?id=release-notes.rn_apex_static_variables_interviews.htm&release=242&type=5), but for the sake of this article, we'll ignore this exception.
 
 Ignoring the one exception, the behavior of static variables in Apex has 2 implications for caching data using only static variables:
 
@@ -59,7 +57,7 @@ Ignoring the one exception, the behavior of static variables in Apex has 2 impli
 
 If you have multiple Apex classes querying the same data (in this case, queues), you can reduce your number of queries to 1 by storing the queried data in a static variable that other classes can reference. This alone can be a great improvement in some orgs - I've seen orgs where multiple classes are using queue data, but each class runs its own query, resulting in duplicate/similar queries that consume the SOQL query limits. By centralizing the data into 1 static variable, and updating other classes to use the static variable, we can reduce multiple SOQL queries into 1 query per transaction.
 
-### Prerequesites: Platform Cache Crash Course
+### Platform Cache Crash Course
 
 Although static variables can be used to help reduce overhead (such as queries or computing data) in a transaction, they only last for the duration of the transaction, and still require _some_ overhead to populate the static variables in every transaction. Ideally, we should have a way to cache data across transactions - this is where Salesforce's [platform cache](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_cache_namespace_overview.htm) can help.
 
@@ -138,10 +136,10 @@ public class SomeClass {
     String cacheKey = 'queues';
     List<Group> queues;
     if (CacheManager.TRANSACTION_CACHE.containsKey(cacheKey)) {
-      queues = (List<Group>) CacheManager.TRANSACTION_CACHE.get(key);
+      queues = (List<Group>) CacheManager.TRANSACTION_CACHE.get(cacheKey);
     } else {
       queues = [SELECT Id, DeveloperName, Email, Name FROM Group WHERE Type = 'Queue'];
-      orgPartition.put(key, queues);
+      CacheManager.TRANSACTION_CACHE.put(cacheKey, queues);
     }
     return queues;
   }
