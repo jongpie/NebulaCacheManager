@@ -28,10 +28,6 @@
     {
       "path": "./nebula-cache-manager/recipes/",
       "default": true
-    },
-    {
-      "path": "./joys-of-apex-article/src/",
-      "default": false
     }
   ],
   "plugins": {
@@ -41,8 +37,8 @@
   },
   "packageAliases": {
     "Nebula Cache Manager (Nebula namespace)": "0Ho5Y000000fxvlSAA",
-    "Nebula Cache Manager (Nebula namespace)@1.0.0-0": "04t5Y0000015n1RQAQ",
+    "Nebula Cache Manager (Nebula namespace)@1.0.0": "04t5Y0000015n2AQAQ",
     "Nebula Cache Manager (no namespace)": "0Ho5Y000000fxvqSAA",
-    "Nebula Cache Manager (no namespace)@1.0.0-0": "04t5Y0000015n1WQAQ"
+    "Nebula Cache Manager (no namespace)@1.0.0": "04t5Y0000015n25QAA"
   }
 }

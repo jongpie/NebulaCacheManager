@@ -3,7 +3,7 @@
 // See LICENSE file or go to https://github.com/jongpie/NebulaCacheManager for full license details. //
 //---------------------------------------------------------------------------------------------------//
 
-@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount')
+@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions')
 public without sharing class CacheManager {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
@@ -19,6 +19,16 @@ public without sharing class CacheManager {
   private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction').clone();
 
   private static Map<PlatformCacheType, PlatformCachePartitionProxy> cacheTypeToMockPartitionProxy = new Map<PlatformCacheType, PlatformCachePartitionProxy>();
+
+  private static final System.Pattern ALPHANUMERIC_REGEX_PATTERN {
+    get {
+      if (ALPHANUMERIC_REGEX_PATTERN == null) {
+        ALPHANUMERIC_REGEX_PATTERN = System.Pattern.compile('^[a-zA-Z0-9]+$');
+      }
+      return ALPHANUMERIC_REGEX_PATTERN;
+    }
+    private set;
+  }
 
   @TestVisible
   private enum PlatformCacheType {
@@ -77,8 +87,7 @@ public without sharing class CacheManager {
   }
 
   private static void validateKey(String key) {
-    Pattern alphanumericPattern = Pattern.compile('^[a-zA-Z0-9]+$');
-    Matcher regexMatcher = alphanumericPattern.matcher(key);
+    Matcher regexMatcher = ALPHANUMERIC_REGEX_PATTERN.matcher(key);
     if (regexMatcher.matches() == false) {
       throw new IllegalArgumentException('Key must be alphanumeric, received key: ' + key);
     }

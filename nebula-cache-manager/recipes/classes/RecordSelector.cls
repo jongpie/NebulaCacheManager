@@ -1,4 +1,4 @@
-@SuppressWarnings('PMD.ApexDoc, PMD.CrudViolation, PMD.EmptyStatementBlock')
+@SuppressWarnings('PMD.ApexCRUDViolation, PMD.ApexDoc, PMD.EmptyStatementBlock')
 public without sharing class RecordSelector {
   public RecordSelector() {
   }

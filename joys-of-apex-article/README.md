@@ -66,9 +66,9 @@ Platform cache is an additional layer available in Apex that can be used to cach
 - Platform cache stores cached data in [cache partitions](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_platform_cache_features.htm), and currently supports 2 types of partitions
 
   1. **Organization cache**: data cached in the org partition is available in Apex for any user, which provides a great place to cache data that _is not_ user-specific.
-  2. **Session cache**: data cached in the org partition is available in Apex a specific session for a specific user, which provides a great place to cache data that _is_ user-specific.
+  2. **Session cache**: data cached in the org partition is available in Apex for a specific user's session, which provides a great place to cache data that _is_ user-specific.
 
-- The [Cache namespace in Apex](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_namespace_cache.htm) has several classes that can be used to interact with platform cache. When populating & retrieving data from platform cache, Apex developers can specify which kind of cache they want to interact use (organization or session)
+- The [Cache namespace in Apex](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_namespace_cache.htm) has several classes that can be used to interact with platform cache. When populating & retrieving data from platform cache, Apex developers can specify which kind of cache they want to use (organization or session)
 - `null` values are not supported in platform cache
 - There are limitations on what `String` values can be used for keys within platform cache - they must be alphanumeric, you cannot use spaces, dashes, hyphens, or other special characters
 - Exceptions are automatically thrown by Salesforce if there are configuration issues
@@ -186,7 +186,7 @@ public without sharing class CacheManager_v2_transaction_class {
 }
 ```
 
-Internally, the transaction cache is still using the same `Map<String, Object>` data structure for caching, but that implementation detail is now hidden from consumers of `CacheManager`. A singleton instance of the new `TransactionCache` class now provides methods that interact with the `Map<String, Object>` variable. And by using methods (instead of directly exposing the `Map<String, Object>` variable), we now also the ability to further control how data is added, updated & removed in the cache (which we'll implement later).
+Internally, the transaction cache is still using the same `Map<String, Object>` data structure for caching, but that implementation detail is now hidden from consumers of `CacheManager`. A singleton instance of the new `TransactionCache` class now provides methods that interact with the `Map<String, Object>` variable. And by using methods (instead of directly exposing the `Map<String, Object>` variable), we now also have the ability to further control how data is added, updated & removed in the cache (which we'll implement later).
 
 Now, our example class can use the new `getTransactionCache()` method, instead of directly accessing the `Map<String, Object>`.
 
@@ -400,7 +400,7 @@ Now, the `CacheManager` provides 3 ways to cache data
 
 1. `CacheManager.getOrganizationCache()` - leverages the org partition in platform cache for storing cached data, and internally supplements it with the transaction cache.
 2. `CacheManager.getSessionCache()` - leverages the session partition in platform cache for storing cached data, and internally supplements it with the transaction cache.
-3. `CacheManager.getTransactionCache()` - leverages `Map<String, Object>` for storing cached data, and internally supplements it with configuredly cached data stored in `CacheValue__mdt`
+3. `CacheManager.getTransactionCache()` - leverages `Map<String, Object>` for storing cached data, and internally supplements it with declaratively cached data stored in `CacheValue__mdt`
 
 And because all 3 of these methods return an instance of the interface `CacheManager.Cacheable`, the way that developers interact with each cache type is the same - developers only need to decide where they want to cache data.
 
@@ -410,7 +410,7 @@ Furthermore, we've handled one quirk with platform cache - we've added support f
 
 When implementing Nebula Logger's caching system, I ran into some additional limitations with platform cache - in orgs that do not have platform cache partition space allocated, adding data to a cache partition would result in an exception being thrown. For many orgs, this may not be an issue - if you know that you're using platform cache in your org, then you simply need to configure a cache partition, and you're ready to go. But there are a couple situations that I wanted to support:
 
-- **You're building a reusable app for Salesforce**: it could be an open source project, or [ISV Partner](https://1.appexchange.com/partnerprogram) releasing app on [AppExchange](https://appexchange.salesforce.com/). If you're trying to build a reusable app that leverages platform cache, you need to ensure your code still works in orgs that don't have available platform cache space.
+- **You're building a reusable app for Salesforce**: it could be an open source project, or [an ISV Partner](https://1.appexchange.com/partnerprogram) releasing app on [AppExchange](https://appexchange.salesforce.com/). If you're trying to build a reusable app that leverages platform cache, you need to ensure your code still works in orgs that don't have available platform cache space.
 - **Platform Cache configuration could change**: Even if an org has platform cache space available, if no space has been allocated to the specific partition being used, you can encounter errors.
 - **You can't mock platform cache partitions in Apex tests**: during Apex test execution, the actual cache partitions deployed to your org are used, and there's not currently a way to create a mock instance. If your org does not have space allocated to a partition used by tests, then the tests will fail, which really makes true unit testing more challenging.
 
@@ -618,7 +618,7 @@ With the new class `PlatformCachePartitionProxy` in place, the `CacheManager` cl
 
 At this point, this is effectively the same cache management system used internally by [Nebula Logger](https://github.com/jongpie/NebulaLogger/blob/v4.9.10/nebula-logger/core/main/configuration/classes/LoggerCache.cls), which has already provided some great improvements in several orgs. But if we want to build a standalone caching system, we can add several additional features to make it a highly scalable & configurable.
 
-### 5. Scope-Creep Part 1: Configuredly Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
+### 5. Scope-Creep Part 1: Declaratively Controlling Cache Runtime Behavior, Using `CacheConfiguration__mdt` Custom Metadata Type
 
 When building reusable tools - espcially in Salesforce - I think it can be incredibly powerful to provide configurable controls that can be updated declaratively by admins & developers. In this case, I want to be able to configure several details about the caching system:
 
@@ -898,7 +898,7 @@ public without sharing class CacheManager_v6_configurations {
 
 Although this change involves modifying nearly every method within `CacheManager`, the changes are seamless to Apex developers, and do not impact the way that the caching system is used.
 
-### 6. Scope-Creep Part 2: Configuredly Populating Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
+### 6. Scope-Creep Part 2: Declaratively Populating Cache Data Across Transactions, Using `CacheValue__mdt` Custom Metadata Type
 
 We now have a strong foundation for caching data, and we can control the behavior of the caching system using the new `CacheConfiguration__mdt` custom metadata type. But one limitation with the current system: it still requires a developer to write code to populate/update the cached value. But what if some data doesn't change very frequently (and thus, can be cached for longer than the duration supported by platform cache)? If an urgent issue comes up & the Apex code that caches the data is incorrect, do developers need to immediately deploy a hotfix to correct it?
 
