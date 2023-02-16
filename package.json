@@ -1,15 +1,14 @@
 {
-  "name": "salesforce-app",
-  "private": true,
+  "name": "nebula-cache-manager",
   "version": "1.0.0",
-  "description": "Salesforce App",
+  "description": "A flexible cache management system for Salesforce Apex developers. Built to be scalable & configurable.",
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**",
-    "test": "npm run test:unit",
-    "test:unit": "sfdx-lwc-jest",
-    "test:unit:watch": "sfdx-lwc-jest --watch",
-    "test:unit:debug": "sfdx-lwc-jest --debug",
-    "test:unit:coverage": "sfdx-lwc-jest --coverage",
+    "package:aliases:sort": "sfdx bummer:package:aliases:sort",
+    "package:version:create:nonamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (no namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30 && prettier --write sfdx-project.json",
+    "package:version:create:withnamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (Nebula namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30 && prettier --write sfdx-project.json",
+    "scan:apex": "sfdx scanner:run --pmdconfig ./config/linters/pmd-ruleset.xml --target ./nebula-cache-manager/ --engine pmd --severity-threshold 3",
+    "test:apex": "sfdx force:apex:test:run --verbose --testlevel RunLocalTests --wait 30 --resultformat human --codecoverage --detailedcoverage --outputdir ./test-coverage/apex",
     "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
     "prettier:verify": "prettier --list-different \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
     "postinstall": "husky install",
@@ -18,24 +17,25 @@
   "devDependencies": {
     "@lwc/eslint-plugin-lwc": "^1.1.2",
     "@prettier/plugin-xml": "^2.0.1",
-    "@salesforce/eslint-config-lwc": "^3.2.3",
-    "@salesforce/eslint-plugin-aura": "^2.0.0",
-    "@salesforce/eslint-plugin-lightning": "^1.0.0",
-    "@salesforce/sfdx-lwc-jest": "^1.1.0",
     "eslint": "^8.11.0",
     "eslint-plugin-import": "^2.25.4",
-    "eslint-plugin-jest": "^26.1.2",
     "husky": "^7.0.4",
     "lint-staged": "^12.3.7",
     "prettier": "^2.6.0",
-    "prettier-plugin-apex": "^1.10.0"
+    "prettier-plugin-apex": "^1.10.0",
+    "sfdx-cli": "^7.185.0"
   },
   "lint-staged": {
     "**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}": [
       "prettier --write"
-    ],
-    "**/{aura,lwc}/**": [
-      "eslint"
     ]
-  }
+  },
+  "keywords": [
+    "apex",
+    "cache",
+    "cache management",
+    "caching",
+    "platform cache",
+    "salesforce"
+  ]
 }

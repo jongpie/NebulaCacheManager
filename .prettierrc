@@ -1,14 +1,7 @@
 {
-  "tabWidth": 2,
+  "arrowParens": "avoid",
   "printWidth": 160,
-  "overrides": [
-    {
-      "files": "**/lwc/**/*.html",
-      "options": { "parser": "lwc" }
-    },
-    {
-      "files": "*.{cmp,page,component}",
-      "options": { "parser": "html" }
-    }
-  ]
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "none"
 }

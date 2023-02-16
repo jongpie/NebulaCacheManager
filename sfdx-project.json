@@ -1,11 +1,32 @@
 {
-  "name": "Apex Cache Manager",
+  "name": "Nebula Cache Manager",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "56.0",
+  "pushPackageDirectoriesSequentially": true,
   "packageDirectories": [
     {
-      "path": "apex-cache-manager",
+      "package": "Nebula Cache Manager (no namespace)",
+      "path": "./nebula-cache-manager/core/",
+      "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
+      "versionNumber": "1.0.0.0",
+      "versionName": "Initial Release",
+      "versionDescription": "Initial release of new package",
+      "releaseNotesUrl": "https://github.com/jongpie/NebulaCacheManager/releases",
+      "default": false
+    },
+    {
+      "package": "Nebula Cache Manager (Nebula namespace)",
+      "path": "./nebula-cache-manager/core/",
+      "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
+      "versionNumber": "1.0.0.0",
+      "versionName": "Initial Release",
+      "versionDescription": "Initial release of new package",
+      "releaseNotesUrl": "https://github.com/jongpie/NebulaCacheManager/releases",
+      "default": false
+    },
+    {
+      "path": "./nebula-cache-manager/recipes/",
       "default": true
     }
   ],
@@ -13,5 +34,11 @@
     "sfdx-plugin-prettier": {
       "enabled": true
     }
+  },
+  "packageAliases": {
+    "Nebula Cache Manager (Nebula namespace)": "0Ho5Y000000fxvlSAA",
+    "Nebula Cache Manager (Nebula namespace)@1.0.0": "04t5Y0000015n2AQAQ",
+    "Nebula Cache Manager (no namespace)": "0Ho5Y000000fxvqSAA",
+    "Nebula Cache Manager (no namespace)@1.0.0": "04t5Y0000015n25QAA"
   }
 }

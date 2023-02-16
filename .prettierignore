@@ -3,8 +3,9 @@
 #
 
 **/staticresources/**
-.localdevserver
-.sfdx
-.vscode
-
+.localdevserver/
+.sf/
+.sfdx/
+.husky/
 coverage/
+node_modules/

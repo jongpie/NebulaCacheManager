@@ -12,8 +12,12 @@ deploy-options.json
 # LWC VSCode autocomplete
 **/lwc/jsconfig.json
 
-# LWC Jest coverage reports
-coverage/
+# Code coverage reports
+test-coverage/
+
+# Salesforce metadata
+**/customMetadata/CacheValue.**.md-meta.xml
+**.profile-meta.xml
 
 # Logs
 logs
