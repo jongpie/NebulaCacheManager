@@ -2,6 +2,8 @@
 
 A flexible cache management system for Salesforce Apex developers. Built to be scalable & configurable.
 
+Learn more about the history & implementation of this repo in [the Joys of Apex article 'Iteratively Building a Flexible Caching System for Apex'](https://www.jamessimone.net/blog/joys-of-apex/iteratively-building-a-flexible-caching-system/)
+
 ## Unlocked Package - `Nebula` Namespace - v1.0.0
 
 [![Install Unlocked Package (Nebula namespace) in a Sandbox](./images/btn-install-unlocked-package-sandbox.png)](https://test.salesforce.com/packaging/installPackage.apexp?p0=04t5Y0000015n2AQAQ)
