@@ -183,17 +183,14 @@ public without sharing class CacheManager {
     public Object get(String key, System.Type cacheBuilderClass) {
       if (this.fallbackTransactionCache.contains(key)) {
         return this.fallbackTransactionCache.get(key);
-      }
-      Object value;
-      if (this.cachePartitionProxy.isAvailable() == false) {
-        Cache.CacheBuilder cacheBuilder = (Cache.CacheBuilder) cacheBuilderClass.newInstance();
-        value = cacheBuilder.doLoad(key);
+      } else if (this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key, cacheBuilderClass);
       } else {
         // Cache.CacheBuilder.doLoad method can return null
-        value = this.cachePartitionProxy.get(key, cacheBuilderClass);
+        Object value = this.cachePartitionProxy.get(key, cacheBuilderClass);
+        this.fallbackTransactionCache.put(key, value);
+        return value;
       }
-      this.fallbackTransactionCache.put(key, value);
-      return value;
     }
 
     public Map<String, Object> get(Set<String> keys) {
