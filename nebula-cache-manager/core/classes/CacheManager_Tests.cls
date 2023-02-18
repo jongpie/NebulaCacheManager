@@ -138,7 +138,7 @@ private class CacheManager_Tests {
   }
 
   @IsTest
-  static void it_remove_alls_keys_in_tranaction_cache_when_remove_all_method_is_called() {
+  static void it_remove_alls_keys_in_transaction_cache_when_remove_all_method_is_called() {
     System.Assert.isTrue(CacheManager.getTransactionCache().isAvailable());
     Map<String, Object> keyToValue = new Map<String, Object>{
       'SomeDate' => Date.newInstance(1999, 9, 9),
