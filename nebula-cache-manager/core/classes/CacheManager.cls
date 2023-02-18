@@ -177,17 +177,7 @@ public without sharing class CacheManager {
     }
 
     public Object get(String key) {
-      if (this.fallbackTransactionCache.contains(key) || this.cachePartitionProxy.isAvailable() == false) {
-        return this.fallbackTransactionCache.get(key);
-      } else {
-        Object value = this.cachePartitionProxy.get(key);
-        // Platform cache does not support storing null values, so a predefined value is used as a substitute
-        if (value == PLATFORM_CACHE_NULL_VALUE) {
-          value = null;
-        }
-        this.fallbackTransactionCache.put(key, value);
-        return value;
-      }
+      return this.fallbackTransactionCache.get(key);
     }
 
     public Object get(String key, System.Type cacheBuilderClass) {

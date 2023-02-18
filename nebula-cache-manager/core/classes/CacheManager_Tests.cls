@@ -315,6 +315,29 @@ private class CacheManager_Tests {
   }
 
   @IsTest
+  static void it_adds_configured_key_with_null_value_to_organization_cache_when_organization_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    CacheValue__mdt configuredCacheValue = new CacheValue__mdt(
+      Cache__c = CacheManager.ORGANIZATION_CACHE_CONFIGURATION.Id,
+      DataType__c = String.class.getName(),
+      IsEnabled__c = true,
+      Key__c = mockKey,
+      Value__c = null
+    );
+    CacheManager.CONFIGURED_CACHE_VALUES.add(configuredCacheValue);
+    MockPlatformCachePartitionProxy mockOrganizationPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    System.Assert.isTrue(mockOrganizationPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.ORGANIZATION, mockOrganizationPartitionProxy);
+
+    Object returnedValue = CacheManager.getOrganizationCache().get(mockKey);
+
+    System.Assert.areEqual(null, returnedValue);
+    System.Assert.areEqual(CacheManager.PLATFORM_CACHE_NULL_VALUE, mockOrganizationPartitionProxy.get(mockKey));
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(null, CacheManager.getOrganizationCache().get(mockKey));
+  }
+
+  @IsTest
   static void it_adds_new_key_with_null_value_to_organization_cache_when_organization_platform_cache_is_available() {
     String mockKey = 'SomeKey';
     User mockValue = null;
@@ -603,6 +626,30 @@ private class CacheManager_Tests {
     System.Assert.areEqual(mockValue, mockSessionPartitionProxy.get(mockKey));
     System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
     System.Assert.areEqual(mockValue, CacheManager.getSessionCache().get(mockKey));
+  }
+
+  @IsTest
+  static void it_adds_configured_key_with_null_value_to_session_cache_when_session_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    CacheValue__mdt configuredCacheValue = new CacheValue__mdt(
+      Cache__c = CacheManager.SESSION_CACHE_CONFIGURATION.Id,
+      DataType__c = String.class.getName(),
+      IsEnabled__c = true,
+      Key__c = mockKey,
+      Value__c = null
+    );
+    CacheManager.CONFIGURED_CACHE_VALUES.add(configuredCacheValue);
+    MockPlatformCachePartitionProxy mockSessionPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    System.Assert.isTrue(mockSessionPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.SESSION, mockSessionPartitionProxy);
+
+    Object returnedValue = CacheManager.getSessionCache().get(mockKey);
+
+    System.Assert.areEqual(null, returnedValue);
+    System.Assert.areEqual(CacheManager.PLATFORM_CACHE_NULL_VALUE, mockSessionPartitionProxy.get(mockKey));
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(null, CacheManager.getSessionCache().get(mockKey));
   }
 
   @IsTest
