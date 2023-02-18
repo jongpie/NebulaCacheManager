@@ -380,7 +380,7 @@ public without sharing class CacheManager {
     }
 
     public Object get(String key, System.Type cacheBuilderClass) {
-      if (!this.contains(key)) {
+      if (this.contains(key) == false) {
         Cache.CacheBuilder cacheBuilder = (Cache.CacheBuilder) cacheBuilderClass.newInstance();
         Object value = cacheBuilder.doLoad(key);
         this.put(key, value);
