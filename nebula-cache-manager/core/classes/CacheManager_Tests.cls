@@ -20,6 +20,40 @@ private class CacheManager_Tests {
   }
 
   @IsTest
+  static void it_does_not_put_key_in_organisation_cache_when_configuration_is_disabled() {
+    String mockKey = 'SomeKey';
+    CacheConfiguration__mdt disabledConfiguration = new CacheConfiguration__mdt(
+      IsEnabled__c = false,
+      IsImmutable__c = true,
+      PlatformCachePartitionName__c = 'Mock'
+    );
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    CacheManager.Cacheable cache = CacheManager.getOrganizationCache(disabledConfiguration);
+    System.Assert.isFalse(cache.contains(mockKey));
+
+    cache.put(mockKey, mockValue);
+
+    System.Assert.isFalse(cache.contains(mockKey));
+  }
+
+  @IsTest
+  static void it_does_not_put_key_in_session_cache_when_configuration_is_disabled() {
+    String mockKey = 'SomeKey';
+    CacheConfiguration__mdt disabledConfiguration = new CacheConfiguration__mdt(
+      IsEnabled__c = false,
+      IsImmutable__c = true,
+      PlatformCachePartitionName__c = 'Mock'
+    );
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    CacheManager.Cacheable cache = CacheManager.getSessionCache(disabledConfiguration);
+    System.Assert.isFalse(cache.contains(mockKey));
+
+    cache.put(mockKey, mockValue);
+
+    System.Assert.isFalse(cache.contains(mockKey));
+  }
+
+  @IsTest
   static void it_adds_new_key_to_transaction_cache() {
     String mockKey = 'SomeKey';
     User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
