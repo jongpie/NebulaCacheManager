@@ -41,6 +41,7 @@ public without sharing class CacheManager {
     Map<String, Boolean> contains(Set<String> keys);
     Boolean containsAll(Set<String> keys);
     Object get(String key);
+    Object get(String key, System.Type cacheBuilderClass);
     Map<String, Object> get(Set<String> keys);
     Map<String, Object> getAll();
     Set<String> getKeys();
@@ -188,6 +189,22 @@ public without sharing class CacheManager {
       }
     }
 
+    public Object get(String key, System.Type cacheBuilderClass) {
+      if (this.fallbackTransactionCache.contains(key)) {
+        return this.fallbackTransactionCache.get(key);
+      }
+      Object value;
+      if (this.cachePartitionProxy.isAvailable() == false) {
+        Cache.CacheBuilder cacheBuilder = (Cache.CacheBuilder) cacheBuilderClass.newInstance();
+        value = cacheBuilder.doLoad(key);
+      } else {
+        // Cache.CacheBuilder.doLoad method can return null
+        value = this.cachePartitionProxy.get(key, cacheBuilderClass);
+      }
+      this.fallbackTransactionCache.put(key, value);
+      return value;
+    }
+
     public Map<String, Object> get(Set<String> keys) {
       Map<String, Object> keyToValue = this.cachePartitionProxy.get(keys);
       if (keyToValue == null) {
@@ -315,6 +332,10 @@ public without sharing class CacheManager {
       return this.platformCachePartition?.get(key);
     }
 
+    public virtual Object get(String key, System.Type cacheBuilderClass) {
+      return this.platformCachePartition?.get(cacheBuilderClass, key);
+    }
+
     public virtual Map<String, Object> get(Set<String> keys) {
       return this.platformCachePartition?.get(keys);
     }
@@ -365,6 +386,15 @@ public without sharing class CacheManager {
 
     public Object get(String key) {
       return this.keyToValue.get(key);
+    }
+
+    public Object get(String key, System.Type cacheBuilderClass) {
+      if (!this.contains(key)) {
+        Cache.CacheBuilder cacheBuilder = (Cache.CacheBuilder) cacheBuilderClass.newInstance();
+        Object value = cacheBuilder.doLoad(key);
+        this.put(key, value);
+      }
+      return this.get(key);
     }
 
     public Map<String, Object> get(Set<String> keys) {
