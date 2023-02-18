@@ -87,6 +87,7 @@ public without sharing class CacheManager {
     cacheTypeToMockPartitionProxy.put(cacheType, mockPartitionProxy);
   }
 
+  @TestVisible
   private static void validateKey(String key) {
     Matcher regexMatcher = ALPHANUMERIC_REGEX_PATTERN.matcher(key);
     if (regexMatcher.matches() == false) {

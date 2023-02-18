@@ -818,6 +818,59 @@ private class CacheManager_Tests {
     System.Assert.isFalse(CacheManager.getSessionCache().contains(key));
   }
 
+  @IsTest
+  static void validateKey_does_not_throw_when_called_with_number() {
+    try {
+      for (Integer i = 0; i < 50; ++i) {
+        CacheManager.validateKey('' + i);
+      }
+      System.Assert.isTrue(true);
+    } catch (IllegalArgumentException ex) {
+      System.Assert.fail();
+    }
+  }
+
+  @IsTest
+  static void validateKey_does_not_throw_when_called_with_letters() {
+    String alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    try {
+      for (String key : alphabet.split('')) {
+        CacheManager.validateKey(key);
+      }
+      System.Assert.isTrue(true);
+    } catch (IllegalArgumentException ex) {
+      System.Assert.fail();
+    }
+  }
+
+  @IsTest
+  static void validateKey_throws_when_called_with_not_letters_nor_numbers() {
+    String otherChars = 'ù%`$€"\'(§!)-&@"#éèàç*¨ %£+/=.?,\\';
+
+    for (String key : otherChars.split('')) {
+      try {
+        CacheManager.validateKey(key);
+        System.Assert.fail();
+      } catch (Exception ex) {
+        System.Assert.isInstanceOfType(ex, IllegalArgumentException.class);
+      }
+    }
+  }
+
+  @IsTest
+  static void validateKey_throws_when_called_with_not_letters_nor_numbers_and_letter_numbers() {
+    List<String> phrase = new List<String>{ 'I throw !!', 'I throw 2 times for sure!!', 'No, you throw' };
+
+    for (String key : phrase) {
+      try {
+        CacheManager.validateKey(key);
+        System.Assert.fail();
+      } catch (Exception ex) {
+        System.Assert.isInstanceOfType(ex, IllegalArgumentException.class);
+      }
+    }
+  }
+
   // Since the class `Cache.Partition` can't have be mocked & can't have its methods overridden,
   // the `CacheManager` class internally uses a proxy to help abstract out the usage of the partition,
   // which lets us mock the proxy within (true) unit tests.
