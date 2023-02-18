@@ -113,6 +113,7 @@ private class CacheManager_Tests {
 
   @IsTest
   static void it_supports_bulk_operations_in_transaction_cache() {
+    System.Assert.isTrue(CacheManager.getTransactionCache().containsAll(new Set<String>()));
     System.Assert.isTrue(CacheManager.getTransactionCache().isAvailable());
     Map<String, Object> keyToValue = new Map<String, Object>{
       'SomeDate' => Date.newInstance(1999, 9, 9),
@@ -405,11 +406,13 @@ private class CacheManager_Tests {
       'SomeString' => 'hello, world',
       'SomeSObject' => new User(Id = System.UserInfo.getUserId())
     };
+    System.Assert.isFalse(CacheManager.getOrganizationCache().containsAll(new Set<String>()));
     System.Assert.isFalse(CacheManager.getOrganizationCache().containsAll(keyToValue.keySet()));
     CacheManager.getOrganizationCache().put(keyToValue);
     for (String key : keyToValue.keySet()) {
       System.Assert.isTrue(CacheManager.getOrganizationCache().contains(key));
     }
+    System.Assert.isFalse(CacheManager.getOrganizationCache().containsAll(new Set<String>()));
     Map<String, Boolean> keyToContainsResult = CacheManager.getOrganizationCache().contains(keyToValue.keySet());
     for (String key : keyToContainsResult.keySet()) {
       Boolean containsResult = keyToContainsResult.get(key);
@@ -694,11 +697,13 @@ private class CacheManager_Tests {
       'SomeString' => 'hello, world',
       'SomeSObject' => new User(Id = System.UserInfo.getUserId())
     };
+    System.Assert.isFalse(CacheManager.getSessionCache().containsAll(new Set<String>()));
     System.Assert.isFalse(CacheManager.getSessionCache().containsAll(keyToValue.keySet()));
     CacheManager.getSessionCache().put(keyToValue);
     for (String key : keyToValue.keySet()) {
       System.Assert.isTrue(CacheManager.getSessionCache().contains(key));
     }
+    System.Assert.isFalse(CacheManager.getSessionCache().containsAll(new Set<String>()));
     Map<String, Boolean> keyToContainsResult = CacheManager.getSessionCache().contains(keyToValue.keySet());
     for (String key : keyToContainsResult.keySet()) {
       Boolean containsResult = keyToContainsResult.get(key);

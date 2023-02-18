@@ -162,7 +162,7 @@ public without sharing class CacheManager {
 
     public Boolean containsAll(Set<String> keys) {
       Map<String, Boolean> keyToContainsResult = this.contains(keys);
-      if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
+      if (keyToContainsResult.isEmpty() == true) {
         return false;
       }
 
