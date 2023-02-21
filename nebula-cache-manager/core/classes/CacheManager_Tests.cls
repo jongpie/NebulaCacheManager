@@ -955,7 +955,7 @@ private class CacheManager_Tests {
 
     public override Object get(String key, System.Type cacheBuilderClass) {
       this.getCacheBuilderMethodCallCount++;
-      if (!this.keyToValue.containsKey(key)) {
+      if (this.keyToValue.containsKey(key) == false) {
         Cache.CacheBuilder cacheBuilder = (Cache.CacheBuilder) cacheBuilderClass.newInstance();
         Object value = cacheBuilder.doLoad(key);
         this.keyToValue.put(key, value);
