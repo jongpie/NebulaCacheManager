@@ -9,9 +9,9 @@
       "package": "Nebula Cache Manager (no namespace)",
       "path": "./nebula-cache-manager/core/",
       "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
-      "versionNumber": "1.0.0.0",
-      "versionName": "Initial Release",
-      "versionDescription": "Initial release of new package",
+      "versionNumber": "1.0.1.0",
+      "versionName": "Support for Cache.CacheBuilder",
+      "versionDescription": "Adds a new overload, Cacheable.get(String, System.Type) to provide support for using the interface Support for Cache.CacheBuilder",
       "releaseNotesUrl": "https://github.com/jongpie/NebulaCacheManager/releases",
       "default": false
     },
@@ -19,9 +19,9 @@
       "package": "Nebula Cache Manager (Nebula namespace)",
       "path": "./nebula-cache-manager/core/",
       "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
-      "versionNumber": "1.0.0.0",
-      "versionName": "Initial Release",
-      "versionDescription": "Initial release of new package",
+      "versionNumber": "1.0.1.0",
+      "versionName": "Support for Cache.CacheBuilder",
+      "versionDescription": "Adds a new overload, Cacheable.get(String, System.Type) to provide support for using the interface Support for Cache.CacheBuilder",
       "releaseNotesUrl": "https://github.com/jongpie/NebulaCacheManager/releases",
       "default": false
     },
@@ -38,7 +38,9 @@
   "packageAliases": {
     "Nebula Cache Manager (Nebula namespace)": "0Ho5Y000000fxvlSAA",
     "Nebula Cache Manager (Nebula namespace)@1.0.0": "04t5Y0000015n2AQAQ",
+    "Nebula Cache Manager (Nebula namespace)@1.0.1": "04t5Y0000015n6rQAA",
     "Nebula Cache Manager (no namespace)": "0Ho5Y000000fxvqSAA",
-    "Nebula Cache Manager (no namespace)@1.0.0": "04t5Y0000015n25QAA"
+    "Nebula Cache Manager (no namespace)@1.0.0": "04t5Y0000015n25QAA",
+    "Nebula Cache Manager (no namespace)@1.0.1": "04t5Y0000015n6hQAA"
   }
 }

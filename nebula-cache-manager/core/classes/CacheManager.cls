@@ -41,6 +41,7 @@ public without sharing class CacheManager {
     Map<String, Boolean> contains(Set<String> keys);
     Boolean containsAll(Set<String> keys);
     Object get(String key);
+    Object get(String key, System.Type cacheBuilderClass);
     Map<String, Object> get(Set<String> keys);
     Map<String, Object> getAll();
     Set<String> getKeys();
@@ -86,6 +87,7 @@ public without sharing class CacheManager {
     cacheTypeToMockPartitionProxy.put(cacheType, mockPartitionProxy);
   }
 
+  @TestVisible
   private static void validateKey(String key) {
     Matcher regexMatcher = ALPHANUMERIC_REGEX_PATTERN.matcher(key);
     if (regexMatcher.matches() == false) {
@@ -161,7 +163,7 @@ public without sharing class CacheManager {
 
     public Boolean containsAll(Set<String> keys) {
       Map<String, Boolean> keyToContainsResult = this.contains(keys);
-      if (keyToContainsResult == null || keyToContainsResult.isEmpty() == true) {
+      if (keyToContainsResult.isEmpty() == true) {
         return false;
       }
 
@@ -183,6 +185,19 @@ public without sharing class CacheManager {
         if (value == PLATFORM_CACHE_NULL_VALUE) {
           value = null;
         }
+        this.fallbackTransactionCache.put(key, value);
+        return value;
+      }
+    }
+
+    public Object get(String key, System.Type cacheBuilderClass) {
+      if (this.fallbackTransactionCache.contains(key)) {
+        return this.fallbackTransactionCache.get(key);
+      } else if (this.cachePartitionProxy.isAvailable() == false) {
+        return this.fallbackTransactionCache.get(key, cacheBuilderClass);
+      } else {
+        // Cache.CacheBuilder.doLoad method can return null
+        Object value = this.cachePartitionProxy.get(key, cacheBuilderClass);
         this.fallbackTransactionCache.put(key, value);
         return value;
       }
@@ -315,6 +330,10 @@ public without sharing class CacheManager {
       return this.platformCachePartition?.get(key);
     }
 
+    public virtual Object get(String key, System.Type cacheBuilderClass) {
+      return this.platformCachePartition?.get(cacheBuilderClass, key);
+    }
+
     public virtual Map<String, Object> get(Set<String> keys) {
       return this.platformCachePartition?.get(keys);
     }
@@ -365,6 +384,15 @@ public without sharing class CacheManager {
 
     public Object get(String key) {
       return this.keyToValue.get(key);
+    }
+
+    public Object get(String key, System.Type cacheBuilderClass) {
+      if (this.contains(key) == false) {
+        Cache.CacheBuilder cacheBuilder = (Cache.CacheBuilder) cacheBuilderClass.newInstance();
+        Object value = cacheBuilder.doLoad(key);
+        this.put(key, value);
+      }
+      return this.get(key);
     }
 
     public Map<String, Object> get(Set<String> keys) {

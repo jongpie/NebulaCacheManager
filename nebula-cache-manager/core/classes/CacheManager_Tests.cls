@@ -20,6 +20,40 @@ private class CacheManager_Tests {
   }
 
   @IsTest
+  static void it_does_not_put_key_in_organisation_cache_when_configuration_is_disabled() {
+    String mockKey = 'SomeKey';
+    CacheConfiguration__mdt disabledConfiguration = new CacheConfiguration__mdt(
+      IsEnabled__c = false,
+      IsImmutable__c = true,
+      PlatformCachePartitionName__c = 'Mock'
+    );
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    CacheManager.Cacheable cache = CacheManager.getOrganizationCache(disabledConfiguration);
+    System.Assert.isFalse(cache.contains(mockKey));
+
+    cache.put(mockKey, mockValue);
+
+    System.Assert.isFalse(cache.contains(mockKey));
+  }
+
+  @IsTest
+  static void it_does_not_put_key_in_session_cache_when_configuration_is_disabled() {
+    String mockKey = 'SomeKey';
+    CacheConfiguration__mdt disabledConfiguration = new CacheConfiguration__mdt(
+      IsEnabled__c = false,
+      IsImmutable__c = true,
+      PlatformCachePartitionName__c = 'Mock'
+    );
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    CacheManager.Cacheable cache = CacheManager.getSessionCache(disabledConfiguration);
+    System.Assert.isFalse(cache.contains(mockKey));
+
+    cache.put(mockKey, mockValue);
+
+    System.Assert.isFalse(cache.contains(mockKey));
+  }
+
+  @IsTest
   static void it_adds_new_key_to_transaction_cache() {
     String mockKey = 'SomeKey';
     User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
@@ -41,6 +75,23 @@ private class CacheManager_Tests {
 
     System.Assert.isTrue(CacheManager.getTransactionCache().contains(mockKey));
     System.Assert.areEqual(mockValue, CacheManager.getTransactionCache().get(mockKey));
+  }
+
+  @IsTest
+  static void it_adds_new_key_with_cachebuilder_to_transaction_cache_when_get_key() {
+    String mockKey = 'SomeKey';
+    System.Type cacheBuilderStubType = CacheBuilderStub.class;
+    System.Assert.isFalse(CacheManager.getTransactionCache().contains(mockKey));
+
+    Object generatedValue = CacheManager.getTransactionCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.isNotNull(generatedValue);
+    System.Assert.isTrue(CacheManager.getTransactionCache().contains(mockKey));
+
+    Object cachedValue = CacheManager.getTransactionCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.isNotNull(cachedValue);
+    System.Assert.areEqual(generatedValue, cachedValue);
   }
 
   @IsTest
@@ -96,6 +147,7 @@ private class CacheManager_Tests {
 
   @IsTest
   static void it_supports_bulk_operations_in_transaction_cache() {
+    System.Assert.isTrue(CacheManager.getTransactionCache().containsAll(new Set<String>()));
     System.Assert.isTrue(CacheManager.getTransactionCache().isAvailable());
     Map<String, Object> keyToValue = new Map<String, Object>{
       'SomeDate' => Date.newInstance(1999, 9, 9),
@@ -121,7 +173,7 @@ private class CacheManager_Tests {
   }
 
   @IsTest
-  static void it_remove_alls_keys_in_tranaction_cache_when_remove_all_method_is_called() {
+  static void it_remove_alls_keys_in_transaction_cache_when_remove_all_method_is_called() {
     System.Assert.isTrue(CacheManager.getTransactionCache().isAvailable());
     Map<String, Object> keyToValue = new Map<String, Object>{
       'SomeDate' => Date.newInstance(1999, 9, 9),
@@ -158,6 +210,84 @@ private class CacheManager_Tests {
   }
 
   @IsTest
+  static void it_gets_value_from_organization_cache_when_transaction_cache_miss_and_organization_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    MockPlatformCachePartitionProxy mockOrganizationPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    mockOrganizationPartitionProxy.put(mockKey, mockValue, 3600, Cache.Visibility.ALL, false);
+    System.Assert.isTrue(mockOrganizationPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.ORGANIZATION, mockOrganizationPartitionProxy);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(1, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.getMethodCallCount);
+
+    Object actualResult = CacheManager.getOrganizationCache().get(mockKey);
+
+    System.Assert.areEqual(1, mockOrganizationPartitionProxy.getMethodCallCount);
+    System.Assert.areEqual(mockValue, actualResult);
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+  }
+
+  @IsTest
+  static void it_gets_value_from_session_cache_when_transaction_cache_miss_and_session_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    MockPlatformCachePartitionProxy mockSessionPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    mockSessionPartitionProxy.put(mockKey, mockValue, 3600, Cache.Visibility.ALL, false);
+    System.Assert.isTrue(mockSessionPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.SESSION, mockSessionPartitionProxy);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(1, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.getMethodCallCount);
+
+    Object actualResult = CacheManager.getSessionCache().get(mockKey);
+
+    System.Assert.areEqual(1, mockSessionPartitionProxy.getMethodCallCount);
+    System.Assert.areEqual(mockValue, actualResult);
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+  }
+
+  @IsTest
+  static void it_gets_null_from_organization_cache_when_transaction_cache_miss_and_organization_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    MockPlatformCachePartitionProxy mockOrganizationPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    mockOrganizationPartitionProxy.put(mockKey, CacheManager.PLATFORM_CACHE_NULL_VALUE, 3600, Cache.Visibility.ALL, false);
+    System.Assert.isTrue(mockOrganizationPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.ORGANIZATION, mockOrganizationPartitionProxy);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(1, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.getMethodCallCount);
+
+    Object actualResult = CacheManager.getOrganizationCache().get(mockKey);
+
+    System.Assert.areEqual(1, mockOrganizationPartitionProxy.getMethodCallCount);
+    System.Assert.areEqual(null, actualResult);
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+  }
+
+  @IsTest
+  static void it_gets_null_from_session_cache_when_transaction_cache_miss_and_session_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    MockPlatformCachePartitionProxy mockSessionPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    mockSessionPartitionProxy.put(mockKey, CacheManager.PLATFORM_CACHE_NULL_VALUE, 3600, Cache.Visibility.ALL, false);
+    System.Assert.isTrue(mockSessionPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.SESSION, mockSessionPartitionProxy);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(1, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.getMethodCallCount);
+
+    Object actualResult = CacheManager.getSessionCache().get(mockKey);
+
+    System.Assert.areEqual(1, mockSessionPartitionProxy.getMethodCallCount);
+    System.Assert.areEqual(null, actualResult);
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+  }
+
+  @IsTest
   static void it_adds_new_key_to_fallback_transaction_cache_when_organization_platform_cache_is_not_available() {
     String mockKey = 'SomeKey';
     User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
@@ -176,6 +306,64 @@ private class CacheManager_Tests {
     System.Assert.isNull(mockOrganizationPartitionProxy.get(mockKey));
     System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
     System.Assert.areEqual(mockValue, CacheManager.getOrganizationCache().get(mockKey));
+  }
+
+  @IsTest
+  static void it_adds_new_key_to_organization_cache_with_cachebuilder_when_organization_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    System.Type cacheBuilderStubType = CacheBuilderStub.class;
+    MockPlatformCachePartitionProxy mockOrganizationPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    System.Assert.isTrue(mockOrganizationPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.ORGANIZATION, mockOrganizationPartitionProxy);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.isFalse(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(1, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.getCacheBuilderMethodCallCount);
+
+    Object generatedValue = CacheManager.getOrganizationCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.areEqual(1, mockOrganizationPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.isTrue(mockOrganizationPartitionProxy.contains(mockKey));
+    System.Assert.isNotNull(generatedValue);
+
+    Object cachedValue = CacheManager.getOrganizationCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.isNotNull(cachedValue);
+    System.Assert.areEqual(generatedValue, cachedValue);
+    System.Assert.areEqual(1, mockOrganizationPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.areEqual(cachedValue, mockOrganizationPartitionProxy.get(mockKey));
+    System.Assert.isTrue(mockOrganizationPartitionProxy.contains(mockKey));
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(cachedValue, CacheManager.getOrganizationCache().get(mockKey));
+  }
+
+  @IsTest
+  static void it_adds_new_key_to_fallback_transaction_cache_with_cachebuilder_when_organization_platform_cache_is_not_available() {
+    String mockKey = 'SomeKey';
+    System.Type cacheBuilderStubType = CacheBuilderStub.class;
+    MockPlatformCachePartitionProxy mockOrganizationPartitionProxy = new MockPlatformCachePartitionProxy(false);
+    System.Assert.isFalse(mockOrganizationPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.ORGANIZATION, mockOrganizationPartitionProxy);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.isFalse(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.getCacheBuilderMethodCallCount);
+
+    Object generatedValue = CacheManager.getOrganizationCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.isFalse(mockOrganizationPartitionProxy.contains(mockKey));
+    System.Assert.isNotNull(generatedValue);
+
+    Object cachedValue = CacheManager.getOrganizationCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.isNotNull(cachedValue);
+    System.Assert.areEqual(generatedValue, cachedValue);
+    System.Assert.areEqual(0, mockOrganizationPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.isNull(mockOrganizationPartitionProxy.get(mockKey));
+    System.Assert.isFalse(mockOrganizationPartitionProxy.contains(mockKey));
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(cachedValue, CacheManager.getOrganizationCache().get(mockKey));
   }
 
   @IsTest
@@ -202,6 +390,29 @@ private class CacheManager_Tests {
     System.Assert.areEqual(mockValue, mockOrganizationPartitionProxy.get(mockKey));
     System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
     System.Assert.areEqual(mockValue, CacheManager.getOrganizationCache().get(mockKey));
+  }
+
+  @IsTest
+  static void it_adds_configured_key_with_null_value_to_organization_cache_when_organization_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    CacheValue__mdt configuredCacheValue = new CacheValue__mdt(
+      Cache__c = CacheManager.ORGANIZATION_CACHE_CONFIGURATION.Id,
+      DataType__c = String.class.getName(),
+      IsEnabled__c = true,
+      Key__c = mockKey,
+      Value__c = null
+    );
+    CacheManager.CONFIGURED_CACHE_VALUES.add(configuredCacheValue);
+    MockPlatformCachePartitionProxy mockOrganizationPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    System.Assert.isTrue(mockOrganizationPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.ORGANIZATION, mockOrganizationPartitionProxy);
+
+    Object returnedValue = CacheManager.getOrganizationCache().get(mockKey);
+
+    System.Assert.areEqual(null, returnedValue);
+    System.Assert.areEqual(CacheManager.PLATFORM_CACHE_NULL_VALUE, mockOrganizationPartitionProxy.get(mockKey));
+    System.Assert.isTrue(CacheManager.getOrganizationCache().contains(mockKey));
+    System.Assert.areEqual(null, CacheManager.getOrganizationCache().get(mockKey));
   }
 
   @IsTest
@@ -330,11 +541,13 @@ private class CacheManager_Tests {
       'SomeString' => 'hello, world',
       'SomeSObject' => new User(Id = System.UserInfo.getUserId())
     };
+    System.Assert.isFalse(CacheManager.getOrganizationCache().containsAll(new Set<String>()));
     System.Assert.isFalse(CacheManager.getOrganizationCache().containsAll(keyToValue.keySet()));
     CacheManager.getOrganizationCache().put(keyToValue);
     for (String key : keyToValue.keySet()) {
       System.Assert.isTrue(CacheManager.getOrganizationCache().contains(key));
     }
+    System.Assert.isFalse(CacheManager.getOrganizationCache().containsAll(new Set<String>()));
     Map<String, Boolean> keyToContainsResult = CacheManager.getOrganizationCache().contains(keyToValue.keySet());
     for (String key : keyToContainsResult.keySet()) {
       Boolean containsResult = keyToContainsResult.get(key);
@@ -365,6 +578,64 @@ private class CacheManager_Tests {
     CacheManager.getOrganizationCache().removeAll();
 
     System.Assert.isTrue(CacheManager.getOrganizationCache().getKeys().isEmpty());
+  }
+
+  @IsTest
+  static void it_adds_new_key_to_session_cache_with_cachebuilder_when_session_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    System.Type cacheBuilderStubType = CacheBuilderStub.class;
+    MockPlatformCachePartitionProxy mockSessionPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    System.Assert.isTrue(mockSessionPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.SESSION, mockSessionPartitionProxy);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.isFalse(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(1, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.getCacheBuilderMethodCallCount);
+
+    Object generatedValue = CacheManager.getSessionCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.areEqual(1, mockSessionPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.isTrue(mockSessionPartitionProxy.contains(mockKey));
+    System.Assert.isNotNull(generatedValue);
+
+    Object cachedValue = CacheManager.getSessionCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.isNotNull(cachedValue);
+    System.Assert.areEqual(generatedValue, cachedValue);
+    System.Assert.areEqual(1, mockSessionPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.areEqual(cachedValue, mockSessionPartitionProxy.get(mockKey));
+    System.Assert.isTrue(mockSessionPartitionProxy.contains(mockKey));
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(cachedValue, CacheManager.getSessionCache().get(mockKey));
+  }
+
+  @IsTest
+  static void it_adds_new_key_to_fallback_transaction_cache_with_cachebuilder_when_session_platform_cache_is_not_available() {
+    String mockKey = 'SomeKey';
+    System.Type cacheBuilderStubType = CacheBuilderStub.class;
+    MockPlatformCachePartitionProxy mockSessionPartitionProxy = new MockPlatformCachePartitionProxy(false);
+    System.Assert.isFalse(mockSessionPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.SESSION, mockSessionPartitionProxy);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.isFalse(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(0, mockSessionPartitionProxy.containsMethodCallCount);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.getCacheBuilderMethodCallCount);
+
+    Object generatedValue = CacheManager.getSessionCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.areEqual(0, mockSessionPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.isFalse(mockSessionPartitionProxy.contains(mockKey));
+    System.Assert.isNotNull(generatedValue);
+
+    Object cachedValue = CacheManager.getSessionCache().get(mockKey, cacheBuilderStubType);
+
+    System.Assert.isNotNull(cachedValue);
+    System.Assert.areEqual(generatedValue, cachedValue);
+    System.Assert.areEqual(0, mockSessionPartitionProxy.getCacheBuilderMethodCallCount);
+    System.Assert.isNull(mockSessionPartitionProxy.get(mockKey));
+    System.Assert.isFalse(mockSessionPartitionProxy.contains(mockKey));
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(cachedValue, CacheManager.getSessionCache().get(mockKey));
   }
 
   @IsTest
@@ -433,6 +704,30 @@ private class CacheManager_Tests {
     System.Assert.areEqual(mockValue, mockSessionPartitionProxy.get(mockKey));
     System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
     System.Assert.areEqual(mockValue, CacheManager.getSessionCache().get(mockKey));
+  }
+
+  @IsTest
+  static void it_adds_configured_key_with_null_value_to_session_cache_when_session_platform_cache_is_available() {
+    String mockKey = 'SomeKey';
+    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+    CacheValue__mdt configuredCacheValue = new CacheValue__mdt(
+      Cache__c = CacheManager.SESSION_CACHE_CONFIGURATION.Id,
+      DataType__c = String.class.getName(),
+      IsEnabled__c = true,
+      Key__c = mockKey,
+      Value__c = null
+    );
+    CacheManager.CONFIGURED_CACHE_VALUES.add(configuredCacheValue);
+    MockPlatformCachePartitionProxy mockSessionPartitionProxy = new MockPlatformCachePartitionProxy(true);
+    System.Assert.isTrue(mockSessionPartitionProxy.isAvailable());
+    CacheManager.setMockPartitionProxy(CacheManager.PlatformCacheType.SESSION, mockSessionPartitionProxy);
+
+    Object returnedValue = CacheManager.getSessionCache().get(mockKey);
+
+    System.Assert.areEqual(null, returnedValue);
+    System.Assert.areEqual(CacheManager.PLATFORM_CACHE_NULL_VALUE, mockSessionPartitionProxy.get(mockKey));
+    System.Assert.isTrue(CacheManager.getSessionCache().contains(mockKey));
+    System.Assert.areEqual(null, CacheManager.getSessionCache().get(mockKey));
   }
 
   @IsTest
@@ -561,11 +856,13 @@ private class CacheManager_Tests {
       'SomeString' => 'hello, world',
       'SomeSObject' => new User(Id = System.UserInfo.getUserId())
     };
+    System.Assert.isFalse(CacheManager.getSessionCache().containsAll(new Set<String>()));
     System.Assert.isFalse(CacheManager.getSessionCache().containsAll(keyToValue.keySet()));
     CacheManager.getSessionCache().put(keyToValue);
     for (String key : keyToValue.keySet()) {
       System.Assert.isTrue(CacheManager.getSessionCache().contains(key));
     }
+    System.Assert.isFalse(CacheManager.getSessionCache().containsAll(new Set<String>()));
     Map<String, Boolean> keyToContainsResult = CacheManager.getSessionCache().contains(keyToValue.keySet());
     for (String key : keyToContainsResult.keySet()) {
       Boolean containsResult = keyToContainsResult.get(key);
@@ -646,6 +943,59 @@ private class CacheManager_Tests {
     System.Assert.isFalse(CacheManager.getSessionCache().contains(key));
   }
 
+  @IsTest
+  static void validateKey_does_not_throw_when_called_with_number() {
+    try {
+      for (Integer i = 0; i < 50; ++i) {
+        CacheManager.validateKey('' + i);
+      }
+      System.Assert.isTrue(true);
+    } catch (IllegalArgumentException ex) {
+      System.Assert.fail();
+    }
+  }
+
+  @IsTest
+  static void validateKey_does_not_throw_when_called_with_letters() {
+    String alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    try {
+      for (String key : alphabet.split('')) {
+        CacheManager.validateKey(key);
+      }
+      System.Assert.isTrue(true);
+    } catch (IllegalArgumentException ex) {
+      System.Assert.fail();
+    }
+  }
+
+  @IsTest
+  static void validateKey_throws_when_called_with_not_letters_nor_numbers() {
+    String otherChars = 'ù%`$€"\'(§!)-&@"#éèàç*¨ %£+/=.?,\\';
+
+    for (String key : otherChars.split('')) {
+      try {
+        CacheManager.validateKey(key);
+        System.Assert.fail();
+      } catch (Exception ex) {
+        System.Assert.isInstanceOfType(ex, IllegalArgumentException.class);
+      }
+    }
+  }
+
+  @IsTest
+  static void validateKey_throws_when_called_with_not_letters_nor_numbers_and_letter_numbers() {
+    List<String> phrase = new List<String>{ 'I throw !!', 'I throw 2 times for sure!!', 'No, you throw' };
+
+    for (String key : phrase) {
+      try {
+        CacheManager.validateKey(key);
+        System.Assert.fail();
+      } catch (Exception ex) {
+        System.Assert.isInstanceOfType(ex, IllegalArgumentException.class);
+      }
+    }
+  }
+
   // Since the class `Cache.Partition` can't have be mocked & can't have its methods overridden,
   // the `CacheManager` class internally uses a proxy to help abstract out the usage of the partition,
   // which lets us mock the proxy within (true) unit tests.
@@ -657,6 +1007,7 @@ private class CacheManager_Tests {
     public Integer isAvailableMethodCallCount = 0;
     public Integer containsMethodCallCount = 0;
     public Integer getMethodCallCount = 0;
+    public Integer getCacheBuilderMethodCallCount = 0;
     public Integer putMethodCallCount = 0;
     public Integer removeMethodCallCount = 0;
 
@@ -680,6 +1031,16 @@ private class CacheManager_Tests {
       return this.keyToValue.get(key);
     }
 
+    public override Object get(String key, System.Type cacheBuilderClass) {
+      this.getCacheBuilderMethodCallCount++;
+      if (this.keyToValue.containsKey(key) == false) {
+        Cache.CacheBuilder cacheBuilder = (Cache.CacheBuilder) cacheBuilderClass.newInstance();
+        Object value = cacheBuilder.doLoad(key);
+        this.keyToValue.put(key, value);
+      }
+      return this.keyToValue.get(key);
+    }
+
     @SuppressWarnings('PMD.ExcessiveParameterList')
     public override void put(String key, Object value, Integer cacheTtlSeconds, Cache.Visibility cacheVisiblity, Boolean isCacheImmutable) {
       this.putMethodCallCount++;
@@ -689,6 +1050,13 @@ private class CacheManager_Tests {
     public override void remove(String key) {
       this.removeMethodCallCount++;
       this.keyToValue.remove(key);
+    }
+  }
+
+  private class CacheBuilderStub implements Cache.CacheBuilder {
+    public Object doLoad(String key) {
+      User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
+      return mockValue;
     }
   }
 }
