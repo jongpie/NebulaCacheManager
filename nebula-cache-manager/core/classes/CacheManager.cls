@@ -3,12 +3,14 @@
 // See LICENSE file or go to https://github.com/jongpie/NebulaCacheManager for full license details. //
 //---------------------------------------------------------------------------------------------------//
 
-@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions')
+@SuppressWarnings('PMD.ApexDoc, PMD.AvoidDebugStatements, PMD.AvoidGlobalModifier, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions')
 public without sharing class CacheManager {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
   @TestVisible
   private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
+  @TestVisible
+  private static final String CURRENT_VERSION_NUMBER = 'v1.0.2';
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
   @TestVisible
@@ -28,6 +30,10 @@ public without sharing class CacheManager {
       return ALPHANUMERIC_REGEX_PATTERN;
     }
     private set;
+  }
+
+  static {
+    System.debug(System.LoggingLevel.INFO, 'Nebula Cache Manager - Version Number: ' + CURRENT_VERSION_NUMBER);
   }
 
   @TestVisible
@@ -133,7 +139,7 @@ public without sharing class CacheManager {
     return keyToCacheValue;
   }
 
-  @SuppressWarnings('PMD.CognitiveComplexity')
+  @SuppressWarnings('PMD.CognitiveComplexity, PMD.CyclomaticComplexity')
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;

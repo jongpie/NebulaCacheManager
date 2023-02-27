@@ -1,5 +1,5 @@
 {
-  "orgName": "Nebula Cache Manager - Base Scratch Org",
+  "orgName": "Nebula Cache Manager - Platform Cache Scratch Org",
   "edition": "Enterprise",
   "hasSampleData": true,
   "country": "US",
@@ -7,7 +7,7 @@
   "features": ["PlatformCache"],
   "settings": {
     "securitySettings": {
-      "enableAdminLoginAsAnyUser": false
+      "enableAdminLoginAsAnyUser": true
     },
     "userManagementSettings": {
       "enableEnhancedPermsetMgmt": true,
