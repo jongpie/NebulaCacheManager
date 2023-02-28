@@ -7,6 +7,7 @@
     "package:aliases:sort": "sfdx bummer:package:aliases:sort",
     "package:version:create:nonamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (no namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30",
     "package:version:create:withnamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (Nebula namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30",
+    "package:version:number:sync": "pwsh ./scripts/build/sync-package-version-number.ps1",
     "permset:assign:admin": "sfdx force:user:permset:assign --permsetname CacheManagerAdmin",
     "postinstall": "husky install",
     "precommit": "lint-staged",
@@ -31,12 +32,8 @@
     "lint-staged": "^12.3.7",
     "prettier": "^2.6.0",
     "prettier-plugin-apex": "^1.10.0",
+    "pwsh": "^0.3.0",
     "sfdx-cli": "^7.185.0"
-  },
-  "lint-staged": {
-    "**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}": [
-      "prettier --write"
-    ]
   },
   "keywords": [
     "apex",
