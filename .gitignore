@@ -7,6 +7,7 @@
 .sfdx/
 .localdevserver/
 .vscode/
+__pycache__/
 deploy-options.json
 
 # LWC VSCode autocomplete
