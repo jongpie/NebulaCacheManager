@@ -709,7 +709,6 @@ private class CacheManager_Tests {
   @IsTest
   static void it_adds_configured_key_with_null_value_to_session_cache_when_session_platform_cache_is_available() {
     String mockKey = 'SomeKey';
-    User mockValue = new User(Id = System.UserInfo.getUserId(), ProfileId = System.UserInfo.getProfileId());
     CacheValue__mdt configuredCacheValue = new CacheValue__mdt(
       Cache__c = CacheManager.SESSION_CACHE_CONFIGURATION.Id,
       DataType__c = String.class.getName(),

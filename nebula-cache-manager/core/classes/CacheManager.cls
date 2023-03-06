@@ -3,12 +3,14 @@
 // See LICENSE file or go to https://github.com/jongpie/NebulaCacheManager for full license details. //
 //---------------------------------------------------------------------------------------------------//
 
-@SuppressWarnings('PMD.ApexDoc, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions')
-public without sharing class CacheManager {
+@SuppressWarnings('PMD.ApexDoc, PMD.AvoidDebugStatements, PMD.AvoidGlobalModifier, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions')
+global without sharing class CacheManager {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
   @TestVisible
   private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
+  @TestVisible
+  private static final String CURRENT_VERSION_NUMBER = 'v1.0.2';
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
   @TestVisible
@@ -30,13 +32,17 @@ public without sharing class CacheManager {
     private set;
   }
 
+  static {
+    System.debug(System.LoggingLevel.INFO, 'Nebula Cache Manager - Version Number: ' + CURRENT_VERSION_NUMBER);
+  }
+
   @TestVisible
   private enum PlatformCacheType {
     ORGANIZATION,
     SESSION
   }
 
-  public interface Cacheable {
+  global interface Cacheable {
     Boolean contains(String key);
     Map<String, Boolean> contains(Set<String> keys);
     Boolean containsAll(Set<String> keys);
@@ -55,23 +61,23 @@ public without sharing class CacheManager {
     void removeAll();
   }
 
-  public static Cacheable getOrganizationCache() {
+  global static Cacheable getOrganizationCache() {
     return getOrganizationCache(ORGANIZATION_CACHE_CONFIGURATION);
   }
 
-  public static Cacheable getOrganizationCache(CacheConfiguration__mdt configuration) {
+  global static Cacheable getOrganizationCache(CacheConfiguration__mdt configuration) {
     return getPlatformCache(configuration, PlatformCacheType.ORGANIZATION);
   }
 
-  public static Cacheable getSessionCache() {
+  global static Cacheable getSessionCache() {
     return getSessionCache(SESSION_CACHE_CONFIGURATION);
   }
 
-  public static Cacheable getSessionCache(CacheConfiguration__mdt configuration) {
+  global static Cacheable getSessionCache(CacheConfiguration__mdt configuration) {
     return getPlatformCache(configuration, PlatformCacheType.SESSION);
   }
 
-  public static Cacheable getTransactionCache() {
+  global static Cacheable getTransactionCache() {
     if (CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.containsKey(TRANSACTION_CACHE_CONFIGURATION.DeveloperName)) {
       return CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.get(TRANSACTION_CACHE_CONFIGURATION.DeveloperName);
     }
@@ -133,7 +139,7 @@ public without sharing class CacheManager {
     return keyToCacheValue;
   }
 
-  @SuppressWarnings('PMD.CognitiveComplexity')
+  @SuppressWarnings('PMD.CognitiveComplexity, PMD.CyclomaticComplexity')
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
     private final CacheConfiguration__mdt configuration;

@@ -7,7 +7,7 @@
   "features": [],
   "settings": {
     "securitySettings": {
-      "enableAdminLoginAsAnyUser": false
+      "enableAdminLoginAsAnyUser": true
     },
     "userManagementSettings": {
       "enableEnhancedPermsetMgmt": true,

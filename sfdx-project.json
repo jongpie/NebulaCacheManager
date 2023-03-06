@@ -9,9 +9,9 @@
       "package": "Nebula Cache Manager (no namespace)",
       "path": "./nebula-cache-manager/core/",
       "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
-      "versionNumber": "1.0.1.0",
-      "versionName": "Support for Cache.CacheBuilder",
-      "versionDescription": "Adds a new overload, Cacheable.get(String, System.Type) to provide support for using the interface Support for Cache.CacheBuilder",
+      "versionNumber": "1.0.2.0",
+      "versionName": "Updated CacheManager methods from public to global",
+      "versionDescription": "All relevant methods in CacheManager (and its inner classses) have been changed to global so that they're accessible in the namespaced package",
       "releaseNotesUrl": "https://github.com/jongpie/NebulaCacheManager/releases",
       "default": false
     },
@@ -19,9 +19,9 @@
       "package": "Nebula Cache Manager (Nebula namespace)",
       "path": "./nebula-cache-manager/core/",
       "definitionFile": "./config/scratch-orgs/base-scratch-def.json",
-      "versionNumber": "1.0.1.0",
-      "versionName": "Support for Cache.CacheBuilder",
-      "versionDescription": "Adds a new overload, Cacheable.get(String, System.Type) to provide support for using the interface Support for Cache.CacheBuilder",
+      "versionNumber": "1.0.2.0",
+      "versionName": "Updated CacheManager methods from public to global",
+      "versionDescription": "All relevant methods in CacheManager (and its inner classses) have been changed to global so that they're accessible in the namespaced package",
       "releaseNotesUrl": "https://github.com/jongpie/NebulaCacheManager/releases",
       "default": false
     },
@@ -39,8 +39,10 @@
     "Nebula Cache Manager (Nebula namespace)": "0Ho5Y000000fxvlSAA",
     "Nebula Cache Manager (Nebula namespace)@1.0.0": "04t5Y0000015n2AQAQ",
     "Nebula Cache Manager (Nebula namespace)@1.0.1": "04t5Y0000015n6rQAA",
+    "Nebula Cache Manager (Nebula namespace)@1.0.2": "04t5Y0000015nCfQAI",
     "Nebula Cache Manager (no namespace)": "0Ho5Y000000fxvqSAA",
     "Nebula Cache Manager (no namespace)@1.0.0": "04t5Y0000015n25QAA",
-    "Nebula Cache Manager (no namespace)@1.0.1": "04t5Y0000015n6hQAA"
+    "Nebula Cache Manager (no namespace)@1.0.1": "04t5Y0000015n6hQAA",
+    "Nebula Cache Manager (no namespace)@1.0.2": "04t5Y0000015nCaQAI"
   }
 }
