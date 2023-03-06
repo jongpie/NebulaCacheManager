@@ -17,8 +17,8 @@
     "sfdx:plugins:link:bummer": "npx sfdx plugins:link ./node_modules/@jongpie/sfdx-bummer-plugin",
     "sfdx:plugins:link:prettier": "npx sfdx plugins:link ./node_modules/@jayree/sfdx-plugin-prettier",
     "sfdx:plugins:link:scanner": "npx sfdx plugins:link ./node_modules/@salesforce/sfdx-scanner",
-    "test:apex": "sfdx force:apex:test:run --verbose --testlevel RunLocalTests --wait 30 --resultformat human --codecoverage --detailedcoverage --outputdir ./test-coverage/apex",
-    "test:apex:nocoverage": "sfdx force:apex:test:run --testlevel RunLocalTests --wait 30 --resultformat human --outputdir ./test-coverage/apex"
+    "test:apex": "sfdx apex:test:run --testlevel RunLocalTests --wait 30 --resultformat human --codecoverage --detailedcoverage --outputdir ./test-coverage/apex",
+    "test:apex:nocoverage": "sfdx apex:test:run --testlevel RunLocalTests --wait 30 --resultformat human --outputdir ./test-coverage/apex"
   },
   "devDependencies": {
     "@jayree/sfdx-plugin-prettier": "^1.2.28",
@@ -33,7 +33,7 @@
     "prettier": "^2.6.0",
     "prettier-plugin-apex": "^1.10.0",
     "pwsh": "^0.3.0",
-    "sfdx-cli": "^7.185.0"
+    "sfdx-cli": "^7.190.2"
   },
   "keywords": [
     "apex",

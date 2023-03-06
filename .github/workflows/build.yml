@@ -212,10 +212,10 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "SFDX_DISABLE_AUTOUPDATE=true" >> $GITHUB_ENV
-          echo "SFDX_DISABLE_SOURCE_MEMBER_POLLING=true" >> $GITHUB_ENV
-          echo "SFDX_DISABLE_TELEMETRY=true" >> $GITHUB_ENV
-          echo "SFDX_PROJECT_AUTOUPDATE_DISABLE_FOR_PACKAGE_VERSION_CREATE=true" >> $GITHUB_ENV
+          echo 'SFDX_DISABLE_AUTOUPDATE=true' >> $GITHUB_ENV
+          echo 'SFDX_DISABLE_SOURCE_MEMBER_POLLING=true' >> $GITHUB_ENV
+          echo 'SFDX_PROJECT_AUTOUPDATE_DISABLE_FOR_PACKAGE_VERSION_CREATE=true' >> $GITHUB_ENV
+        # echo 'SFDX_DISABLE_TELEMETRY=true' >> $GITHUB_ENV
 
       - name: 'Install npm dependencies'
         if: steps.cache-npm.outputs.cache-hit != 'true'
@@ -224,55 +224,59 @@ jobs:
       - name: 'Authorize Dev Hub'
         shell: bash
         run: |
-          echo "${{ env.DEV_HUB_JWT_SERVER_KEY }}" > ./jwt-server.key
+          echo '${{ env.DEV_HUB_JWT_SERVER_KEY }}' > ./jwt-server.key
           npx sfdx force:auth:jwt:grant --instanceurl ${{ env.DEV_HUB_AUTH_URL }} --clientid ${{ env.DEV_HUB_CONSUMER_KEY }} --username ${{ env.DEV_HUB_BOT_USERNAME }} --jwtkeyfile ./jwt-server.key --setdefaultdevhubusername
-          rm ./jwt-server.key
+        # rm ./jwt-server.key
         env:
           DEV_HUB_AUTH_URL: ${{ secrets.DEV_HUB_AUTH_URL }}
           DEV_HUB_BOT_USERNAME: ${{ secrets.DEV_HUB_BOT_USERNAME }}
           DEV_HUB_CONSUMER_KEY: ${{ secrets.DEV_HUB_CONSUMER_KEY }}
           DEV_HUB_JWT_SERVER_KEY: ${{ secrets.DEV_HUB_JWT_SERVER_KEY }}
 
-      - name: 'Create no-namespace package version'
+      - name: 'Create No-Namespace Package Version'
         id: createNoNamespace
-        run: npm run package:version:create:nonamespace -- --branch "${{ inputs.branch }}" --tag ${{ github.sha }}
-
-      - name: 'Create namespaced package version'
-        id: createWithNamespace
-        run: npm run package:version:create:withnamespace -- --branch "${{ inputs.branch }}" --tag ${{ github.sha }}
-
-        # run: |
-        #   noNamespacePackageVersionId=$(npm run package:version:create:nonamespace -- --branch "${{ inputs.branch }}" --tag ${{ github.sha }} | jq -e -r ".result.SubscriberPackageVersionId")
-        #   echo "noNamespacePackageVersionId=$noNamespacePackageVersionId" >> $GITHUB_ENV
-        #   echo "noNamespacePackageVersionId=$noNamespacePackageVersionId" >> $GITHUB_OUTPUT
-
-      # - name: 'Create namespaced package version'
-      #   id: createWithNamespace
-      #   run: |
-      #     withNamespacePackageVersionId=$(npm run package:version:create:nonamespace -- --branch "${{ inputs.branch }}" --tag ${{ github.sha }} | jq -e -r ".result.SubscriberPackageVersionId")
-      #     echo "withNamespacePackageVersionId=$withNamespacePackageVersionId" >> $GITHUB_ENV
-      #     echo "withNamespacePackageVersionId=$withNamespacePackageVersionId" >> $GITHUB_OUTPUT
-
-      # - name: 'Create Platform Cache Scratch Org'
-      #   run: npx sfdx force:org:create -f config/scratch-orgs/platform-cache-scratch-def.json -a scratch-org -s -d 1
-
-      # - name: 'Install no-namespace package version'
-      #   run: npx sfdx force:package:install -p ${{ env.noNamespacePackageVersionId }} -u scratch-org -w 10
-
-      # - name: 'Install namespaced package version'
-      #   run: npx sfdx force:package:install -p ${{ env.withNamespacePackageVersionId }} -u scratch-org -w 10
-
-      # - name: 'Delete Platform Cache Scratch Org'
-      #   run: npx sfdx force:org:delete --json --noprompt
-      #   if: ${{ always() }}
-
-      - name: 'Commit New Package Versions'
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action Bot"
-          npm run sfdx:plugins:link:bummer
-          npx sfdx bummer:package:aliases:sort
-          npx prettier --write ./sfdx-project.json
-          git add ./sfdx-project.json
-          git commit -m "Created new package versions"
-          git push
+          noNamespacePackageVersionId=$(npx sfdx force:package:version:create --package "Nebula Cache Manager (no namespace)"  --wait 120 --codecoverage --skipancestorcheck --installationkeybypass --json | jq --exit-status --raw-output ".result.SubscriberPackageVersionId")
+          echo "noNamespacePackageVersionId=$noNamespacePackageVersionId" >> $GITHUB_ENV
+          echo "noNamespacePackageVersionId=$noNamespacePackageVersionId" >> $GITHUB_OUTPUT
+          echo "Created package version $noNamespacePackageVersionId"
+
+      - name: 'Create Namespaced Package Version'
+        id: createWithNamespace
+        run: |
+          withNamespacePackageVersionId=$(npx sfdx force:package:version:create --package "Nebula Cache Manager (Nebula namespace)"  --wait 120 --codecoverage --skipancestorcheck --installationkeybypass --json | jq --exit-status --raw-output ".result.SubscriberPackageVersionId")
+          echo "withNamespacePackageVersionId=$withNamespacePackageVersionId" >> $GITHUB_ENV
+          echo "withNamespacePackageVersionId=$withNamespacePackageVersionId" >> $GITHUB_OUTPUT
+          echo "Created package version $withNamespacePackageVersionId"
+
+      - name: 'Create Platform Cache Scratch Org'
+        run: npx sfdx force:org:create --definitionfile ./config/scratch-orgs/platform-cache-scratch-def.json --setdefaultusername --durationdays 1
+
+      - name: 'Install Namespaced Package Version'
+        run: npx sfdx force:package:install --package ${{ env.withNamespacePackageVersionId }} --wait 20
+
+      - name: 'Install No-Namespace Package Version'
+        run: npx sfdx force:package:install --package ${{ env.noNamespacePackageVersionId }} --wait 20
+
+      - name: 'Validate Namespaced Package Access'
+        run: npx sfdx apex:run --apexcodefile ./scripts/build/validate-access-to-no-namespace-package.apex
+
+      - name: 'Validate No-Namespace Package Access'
+        run: npx sfdx apex:run --apexcodefile ./scripts/build/validate-access-to-namespaced-package.apex
+
+      - name: 'Delete Platform Cache Scratch Org'
+        run: npx sfdx force:org:delete --json --noprompt
+        if: ${{ always() }}
+
+      # - name: 'Commit New Package Versions'
+      #   run: |
+      #     git config --local user.email "action@github.com"
+      #     git config --local user.name "GitHub Action Bot"
+      #     # npm run sfdx:plugins:link:bummer
+      #     # npx sfdx bummer:package:aliases:sort
+      #     rm ./jwt-server.key
+      #     npx prettier --write ./sfdx-project.json
+      #     git add ./sfdx-project.json
+      #     git status
+      #     git commit -m "Created new package versions"
+      #     git push
