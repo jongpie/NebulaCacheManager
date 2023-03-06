@@ -6,7 +6,7 @@ List<CacheManager.Cacheable> defaultCaches = new List<CacheManager.Cacheable>{
 
 String key = 'someKey';
 User value = [SELECT Id, Username, Email FROM User WHERE Id = :UserInfo.getUserId()];
-for (CacheManager.Cacheable cache : caches) {
+for (CacheManager.Cacheable cache : defaultCaches) {
     System.Assert.isFalse(cache.contains(key));
     cache.put(key, value);
     System.Assert.isTrue(cache.contains(key));

@@ -253,16 +253,16 @@ jobs:
         run: npx sfdx force:org:create --definitionfile ./config/scratch-orgs/platform-cache-scratch-def.json --setdefaultusername --durationdays 1
 
       - name: 'Install Namespaced Package Version'
-        run: npx sfdx force:package:install --package ${{ env.withNamespacePackageVersionId }} --wait 20
+        run: npx sfdx package:install --package ${{ env.withNamespacePackageVersionId }} --wait 20
 
       - name: 'Install No-Namespace Package Version'
-        run: npx sfdx force:package:install --package ${{ env.noNamespacePackageVersionId }} --wait 20
+        run: npx sfdx package:install --package ${{ env.noNamespacePackageVersionId }} --wait 20
 
       - name: 'Validate Namespaced Package Access'
-        run: npx sfdx apex:run --apexcodefile ./scripts/build/validate-access-to-no-namespace-package.apex
+        run: npx sfdx apex:run --file ./scripts/build/validate-access-to-no-namespace-package.apex
 
       - name: 'Validate No-Namespace Package Access'
-        run: npx sfdx apex:run --apexcodefile ./scripts/build/validate-access-to-namespaced-package.apex
+        run: npx sfdx apex:run --file ./scripts/build/validate-access-to-namespaced-package.apex
 
       - name: 'Delete Platform Cache Scratch Org'
         run: npx sfdx force:org:delete --json --noprompt

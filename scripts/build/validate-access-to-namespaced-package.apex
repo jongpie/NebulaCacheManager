@@ -6,7 +6,7 @@ List<Nebula.CacheManager.Cacheable> defaultCaches = new List<Nebula.CacheManager
 
 String key = 'someKey';
 User value = [SELECT Id, Username, Email FROM User WHERE Id = :UserInfo.getUserId()];
-for (Nebula.CacheManager.Cacheable cache : caches) {
+for (Nebula.CacheManager.Cacheable cache : defaultCaches) {
     System.Assert.isFalse(cache.contains(key));
     cache.put(key, value);
     System.Assert.isTrue(cache.contains(key));

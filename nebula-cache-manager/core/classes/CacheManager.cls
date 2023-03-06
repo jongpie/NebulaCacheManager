@@ -4,7 +4,7 @@
 //---------------------------------------------------------------------------------------------------//
 
 @SuppressWarnings('PMD.ApexDoc, PMD.AvoidDebugStatements, PMD.AvoidGlobalModifier, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions')
-public without sharing class CacheManager {
+global without sharing class CacheManager {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
   @TestVisible
@@ -42,7 +42,7 @@ public without sharing class CacheManager {
     SESSION
   }
 
-  public interface Cacheable {
+  global interface Cacheable {
     Boolean contains(String key);
     Map<String, Boolean> contains(Set<String> keys);
     Boolean containsAll(Set<String> keys);
@@ -61,23 +61,23 @@ public without sharing class CacheManager {
     void removeAll();
   }
 
-  public static Cacheable getOrganizationCache() {
+  global static Cacheable getOrganizationCache() {
     return getOrganizationCache(ORGANIZATION_CACHE_CONFIGURATION);
   }
 
-  public static Cacheable getOrganizationCache(CacheConfiguration__mdt configuration) {
+  global static Cacheable getOrganizationCache(CacheConfiguration__mdt configuration) {
     return getPlatformCache(configuration, PlatformCacheType.ORGANIZATION);
   }
 
-  public static Cacheable getSessionCache() {
+  global static Cacheable getSessionCache() {
     return getSessionCache(SESSION_CACHE_CONFIGURATION);
   }
 
-  public static Cacheable getSessionCache(CacheConfiguration__mdt configuration) {
+  global static Cacheable getSessionCache(CacheConfiguration__mdt configuration) {
     return getPlatformCache(configuration, PlatformCacheType.SESSION);
   }
 
-  public static Cacheable getTransactionCache() {
+  global static Cacheable getTransactionCache() {
     if (CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.containsKey(TRANSACTION_CACHE_CONFIGURATION.DeveloperName)) {
       return CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.get(TRANSACTION_CACHE_CONFIGURATION.DeveloperName);
     }
