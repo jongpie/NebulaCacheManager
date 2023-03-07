@@ -1,8 +1,9 @@
 {
   "name": "nebula-cache-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A flexible cache management system for Salesforce Apex developers. Built to be scalable & configurable.",
   "scripts": {
+    "docs:generate:apex": "npx apexdocs-generate --configPath ./config/docs/apexdocs.json --scope global --sourceDir ./nebula-cache-manager/ --targetDir ./docs/api/ --targetGenerator plain-markdown",
     "lint": "eslint **/{aura,lwc}/**",
     "package:aliases:sort": "sfdx bummer:package:aliases:sort",
     "package:version:create:nonamespace": "sfdx force:package:version:create --json --package \"Nebula Cache Manager (no namespace)\" --skipancestorcheck --codecoverage --installationkeybypass --wait 30",
@@ -21,6 +22,7 @@
     "test:apex:nocoverage": "sfdx apex:test:run --testlevel RunLocalTests --wait 30 --resultformat human --outputdir ./test-coverage/apex"
   },
   "devDependencies": {
+    "@cparra/apexdocs": "^2.14.0",
     "@jayree/sfdx-plugin-prettier": "^1.2.28",
     "@jongpie/sfdx-bummer-plugin": "^0.0.18",
     "@lwc/eslint-plugin-lwc": "^1.1.2",

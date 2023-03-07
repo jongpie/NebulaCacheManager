@@ -1,3 +1,8 @@
-# TODO API for Apex Class `CacheManager
+# Classes
+## Core
 
-🚧👷‍♀️ Coming soon!
+### [CacheManager](./Core/CacheManager.md)
+
+Class used to manage caching using organization & session platform caches, as well as using a transaction cache
+
+

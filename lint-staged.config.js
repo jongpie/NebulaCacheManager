@@ -4,6 +4,6 @@ module.exports = {
   },
   '*.{cls,cmp,component,css,html,js,json,md,page,trigger,yaml,yml}': filenames => filenames.map(filename => `prettier --write '${filename}'`),
   '*.{cls,trigger}': () => {
-    return [`npm run scan:apex`];
+    return [`npm run scan:apex`, `npm run docs:generate:apex`];
   }
 };
