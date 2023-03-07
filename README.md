@@ -1,5 +1,9 @@
 # Nebula Cache Manager
 
+[![Build](https://github.com/jongpie/NebulaCacheManager/actions/workflows/build.yml/badge.svg)](https://github.com/jongpie/NebulaCacheManager/actions/workflows/build.yml)
+[![codecov](https://codecov.io/gh/jongpie/NebulaCacheManager/branch/main/graph/badge.svg?token=1DJPDRM3N4)](https://codecov.io/gh/jongpie/NebulaCacheManager)
+[![Documentation Status](https://readthedocs.org/projects/nebulacachemanager/badge/?version=latest)](https://nebulacachemanager.readthedocs.io/en/latest/?badge=latest)
+
 A flexible cache management system for Salesforce Apex developers. Built to be scalable & configurable.
 
 Learn more about the history & implementation of this repo in [the Joys of Apex article 'Iteratively Building a Flexible Caching System for Apex'](https://www.jamessimone.net/blog/joys-of-apex/iteratively-building-a-flexible-caching-system/)
