@@ -1,0 +1,11 @@
+url_path,views_total,views_unique
+/jongpie/NebulaCacheManager,10,9
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager,10,2
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager/core,9,2
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager/core/objects/CacheConfiguration__mdt,8,2
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager/core/objects/CacheConfiguration__mdt/fields,7,2
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager/recipes/classes,7,2
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager/core/objects,6,2
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager/core/cachePartitions,5,2
+/jongpie/NebulaCacheManager/tree/main/nebula-cache-manager/core/objects/CacheValue__mdt,5,2
+/jongpie/NebulaCacheManager/blob/main/nebula-cache-manager/core/cachePartitions/CacheManagerPartition.cachePartition-meta.xml,4,2
