@@ -3,16 +3,20 @@
 // See LICENSE file or go to https://github.com/jongpie/NebulaCacheManager for full license details. //
 //---------------------------------------------------------------------------------------------------//
 
-@SuppressWarnings('PMD.ApexDoc, PMD.AvoidDebugStatements, PMD.AvoidGlobalModifier, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions')
+@SuppressWarnings('PMD.ApexDoc, PMD.AvoidDebugStatements, PMD.AvoidGlobalModifier, PMD.ExcessivePublicCount, PMD.PropertyNamingConventions, PMD.CognitiveComplexity')
 global without sharing class CacheManager {
   @TestVisible
   private static final Map<String, Cacheable> CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE = new Map<String, Cacheable>();
   @TestVisible
-  private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
-  @TestVisible
-  private static final String CURRENT_VERSION_NUMBER = 'v1.0.2';
+  private static final String CURRENT_VERSION_NUMBER = 'v1.0.3';
   @TestVisible
   private static final String PLATFORM_CACHE_NULL_VALUE = '<{(CACHE_VALUE_IS_NULL)}>'; // Presumably, no one will ever use this as an actual value
+  
+  // Load predefined cache values from "Cache Value" custom metadata. They will be always available in cache.
+  @TestVisible
+  private static final List<CacheValue__mdt> CONFIGURED_CACHE_VALUES = Schema.CacheValue__mdt.getAll().values();
+
+  // Load partitions configurations from "Cache Configuration" custom metadata.
   @TestVisible
   private static final CacheConfiguration__mdt ORGANIZATION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Organization').clone();
   @TestVisible
@@ -20,7 +24,7 @@ global without sharing class CacheManager {
   @TestVisible
   private static final CacheConfiguration__mdt TRANSACTION_CACHE_CONFIGURATION = Schema.CacheConfiguration__mdt.getInstance('Transaction').clone();
 
-  private static Map<PlatformCacheType, PlatformCachePartitionProxy> cacheTypeToMockPartitionProxy = new Map<PlatformCacheType, PlatformCachePartitionProxy>();
+  private static Map<PlatformCachePartitionType, PlatformCachePartitionProxy> cacheTypeToMockPartitionProxy = new Map<PlatformCachePartitionType, PlatformCachePartitionProxy>();
 
   private static final System.Pattern ALPHANUMERIC_REGEX_PATTERN {
     get {
@@ -37,46 +41,162 @@ global without sharing class CacheManager {
   }
 
   @TestVisible
-  private enum PlatformCacheType {
+  private enum PlatformCachePartitionType {
     ORGANIZATION,
     SESSION
   }
 
+  /**
+   * @description Interface used to define caches that can be used to store values via different mechanisms
+   */
   global interface Cacheable {
+    /**
+     * @description Indicates if the specified key has already been added to the cache
+     * @param  key The `String` key to check for within the cache
+     * @return     The `Boolean` result that indicates if the specified key is contained in the cache
+     */
     Boolean contains(String key);
+    
+    /**
+     * @description Indicates if the specified keys have already been added to the cache
+     * @param  keys The Set of `String` keys to check for within the cache
+     * @return     The `Map<String, Boolean>` result that indicates if the specified key is contained in the cache
+     */
     Map<String, Boolean> contains(Set<String> keys);
+
+    /**
+     * @description Indicates if the specified keys have already been added to the cache
+     * @param  keys The Set of `String` keys to check for within the cache
+     * @return     The `Boolean` result that indicates if all given keys are contained in the cache
+     */
     Boolean containsAll(Set<String> keys);
+    
+    /**
+     * @description Returns the cached value for the specified key, or `null` if the specified key does not exist in the cache
+     * @param  key  The `String` key to check for within the cache
+     * @return      The `Object` cached value, or `null` if no cached value is found for the specified key
+     */
     Object get(String key);
+
+    /**
+     * @description Returns the cached value for the specified key, or `null` if the specified key does not exist in the cache
+     * @param  key  The `String` key to check for within the cache
+     * @param  cacheBuilderClass Instance of cacheBuilderClass
+     * @return      The cached value, or `null` if no cached value is found for the specified key
+     */
     Object get(String key, System.Type cacheBuilderClass);
+    
+    /**
+     * @description Returns the cached values for the specified keys, or `null` if the specified key does not exist in the cache
+     * @param  keys  The Set of `String` keys to check for within the cache
+     * @return       The `Map<String, Object>` with cached value, or `null` if no cached value is found for the specified key
+     */
     Map<String, Object> get(Set<String> keys);
+  
+    /**
+     * @description Returns all cached values
+     * @return      The `Map<String, Object>` with all cached values
+     */
     Map<String, Object> getAll();
+
+    /**
+     * @description Returns all Keys stored in cache.
+     * @return      `Set<String>` with all keys of cache entries.
+     */
     Set<String> getKeys();
+    
+    /**
+     * @description Check if cache is Available for use (enabled and configured)
+     * @return  `Boolean`
+     */
     Boolean isAvailable();
+
+    /**
+     * @description Check if cache was configured in Custom Metadata as Enabled.
+     * @return  `Boolean`
+     */
     Boolean isEnabled();
+
+    /**
+     * @description Check if cache was configured in Custom Metadata as Immutable.
+     * @return  `Boolean`
+     */
     Boolean isImmutable();
+
+    /**
+     * @description Adds the provided `Object` value to the cache, using the specified `String` key
+     * @param  key   The `String` key to add to the cache
+     * @param  value The `Object` value to cache for the specified key
+     */
     void put(String key, Object value);
+
+    /**
+     * @description Adds the provided `Object` values to the cache, using the specified `String` keys.
+     * @param  keyToValue   The Map of `String` keys to add to the cache with the `Object` values for that keys.
+     */
     void put(Map<String, Object> keyToValue);
+
+    /**
+     * @description Removes the specified `String` key from the cache
+     * @param  key  The `String` key to remove from the cache
+     */
     void remove(String key);
+
+    /**
+     * @description Removes the specified Set of `String` keys from the cache
+     * @param  keys  The Set of `String` keys to remove from the cache
+     */
     void remove(Set<String> keys);
+
+    /**
+     * @description Removes all keys from cache. Clear cache.
+     */
     void removeAll();
   }
 
+  /**
+   * @description The instance of `Cacheable` used for any organization-specific caching via Platform Cache.
+   *              When Platform Cache is disabled or not available, the transaction cache is instead used.
+   * @return      The singleton instance of `Cacheable`
+   */
   global static Cacheable getOrganizationCache() {
     return getOrganizationCache(ORGANIZATION_CACHE_CONFIGURATION);
   }
 
+  /**
+   * @description The instance of `Cacheable` used for any organization-specific caching via Platform Cache.
+   *              When Platform Cache is disabled or not available, the transaction cache is instead used.
+   * @param       configuration Configuration stored in Custom Metadata record for Organization Cache
+   * @return      The singleton instance of `Cacheable`
+   */
   global static Cacheable getOrganizationCache(CacheConfiguration__mdt configuration) {
-    return getPlatformCache(configuration, PlatformCacheType.ORGANIZATION);
+    return getPlatformCache(configuration, PlatformCachePartitionType.ORGANIZATION);
   }
 
+    /**
+   * @description The instance of `Cacheable` used for any session-specific caching via Platform Cache.
+   *              When Platform Cache is disabled or not available, the transaction cache is instead used.
+   * @return      The singleton instance of `Cacheable`
+   */
   global static Cacheable getSessionCache() {
     return getSessionCache(SESSION_CACHE_CONFIGURATION);
   }
 
+  /**
+   * @description The instance of `Cacheable` used for any organization-specific caching via Platform Cache.
+   *              When Platform Cache is disabled or not available, the transaction cache is instead used.
+   * @param       configuration Configuration stored in Custom Metadata record for Session Cache
+   * @return      The singleton instance of `Cacheable`
+   */
   global static Cacheable getSessionCache(CacheConfiguration__mdt configuration) {
-    return getPlatformCache(configuration, PlatformCacheType.SESSION);
+    return getPlatformCache(configuration, PlatformCachePartitionType.SESSION);
   }
 
+  /**
+   * @description The instance of `Cacheable` used for any transaction-specific caching.
+   *              Cached data is stored internally in-memory for the duration of the transaction.
+   * @return      The singleton instance of `Cacheable`
+   */
   global static Cacheable getTransactionCache() {
     if (CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.containsKey(TRANSACTION_CACHE_CONFIGURATION.DeveloperName)) {
       return CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.get(TRANSACTION_CACHE_CONFIGURATION.DeveloperName);
@@ -89,10 +209,15 @@ global without sharing class CacheManager {
   }
 
   @TestVisible
-  private static void setMockPartitionProxy(PlatformCacheType cacheType, PlatformCachePartitionProxy mockPartitionProxy) {
+  private static void setMockPartitionProxy(PlatformCachePartitionType cacheType, PlatformCachePartitionProxy mockPartitionProxy) {
     cacheTypeToMockPartitionProxy.put(cacheType, mockPartitionProxy);
   }
 
+  /**
+   * @description Validate if given key is alphanumeric without any special characters. Allowed characters a-z A-Z 0-9
+   * @param       key String to be checked.
+   * @exception   Exception is thrown if key contains not allowed characters.
+   */
   @TestVisible
   private static void validateKey(String key) {
     Matcher regexMatcher = ALPHANUMERIC_REGEX_PATTERN.matcher(key);
@@ -101,7 +226,7 @@ global without sharing class CacheManager {
     }
   }
 
-  private static Cacheable getPlatformCache(CacheConfiguration__mdt configuration, PlatformCacheType cacheType) {
+  private static Cacheable getPlatformCache(CacheConfiguration__mdt configuration, PlatformCachePartitionType cacheType) {
     if (CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.containsKey(configuration.DeveloperName)) {
       return CONFIGURATION_DEVELOPER_NAME_TO_CACHEABLE_INSTANCE.get(configuration.DeveloperName);
     }
@@ -122,6 +247,12 @@ global without sharing class CacheManager {
     return platformCache;
   }
 
+  /**
+   * @description Check if given cache type is enabled and load permanent cache values from "Cache Value" custom metadata.
+   * Values are loaded for given type of Cache and only if they are enabled.
+   * @param cacheConfiguration Custom Metadata record
+   * @return  `Map<String, Object>` Map of key to cache value.
+   */
   private static Map<String, Object> loadConfiguredCacheValues(CacheConfiguration__mdt cacheConfiguration) {
     Map<String, Object> keyToCacheValue = new Map<String, Object>();
     if (cacheConfiguration.IsEnabled__c == false) {
@@ -139,6 +270,10 @@ global without sharing class CacheManager {
     return keyToCacheValue;
   }
 
+  /**
+   * @description Manages interacting with platform cache. The provided transaction cache instance is used internally as the primary
+   *              caching method, and is further augmented by using Platform Cache to provide caching that spans multiple transactions.
+   */
   @SuppressWarnings('PMD.CognitiveComplexity, PMD.CyclomaticComplexity')
   private class PlatformCache implements Cacheable {
     private final PlatformCachePartitionProxy cachePartitionProxy;
@@ -296,7 +431,7 @@ global without sharing class CacheManager {
     private final Cache.Partition platformCachePartition;
 
     @SuppressWarnings('PMD.EmptyCatchBlock')
-    protected PlatformCachePartitionProxy(PlatformCacheType cacheType, String partitionName) {
+    protected PlatformCachePartitionProxy(PlatformCachePartitionType cacheType, String partitionName) {
       // If the specified partition name is not found, the platform automatically throws a runtime exception, which isn't ideal.
       // It seems better to eat the exceptions & fallback to the transaction cache (which doesn't rely on Platform Cache).
       try {
@@ -309,8 +444,10 @@ global without sharing class CacheManager {
           }
         }
       } catch (Cache.Org.OrgCacheException orgCacheException) {
+        System.Debug(LoggingLevel.WARN, '@#@ ⚠️ Organization Cache partition named ' + partitionName + ' not found.');
         // No-op if the partition can't be found - the rest of the code will fallback to using the transaction cache
       } catch (Cache.Session.SessionCacheException sessionCacheException) {
+        System.Debug(LoggingLevel.WARN, '@#@ ⚠️ Session Cache partition named ' + partitionName + ' not found.');
         // No-op if the partition can't be found - the rest of the code will fallback to using the transaction cache
       }
     }
