@@ -3,6 +3,7 @@
     <fullName>Key__c</fullName>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Key must be alphanumeric. Only a-z, A-Z and 0-9 characters are allowed.</inlineHelpText>
     <label>Key</label>
     <length>255</length>
     <required>true</required>

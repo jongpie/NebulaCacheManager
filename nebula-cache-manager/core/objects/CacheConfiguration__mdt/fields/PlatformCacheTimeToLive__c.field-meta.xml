@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>PlatformCacheTimeToLive__c</fullName>
+    <description>Documentation https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_platform_cache_limits.htm</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>300 seconds (5 minutes) to 28800 seconds (8 hours) for Session cache.
+300 seconds (5 minutes) to 172800 seconds (48 hours) for Organization cache, default 86400 seconds (24 hours).</inlineHelpText>
     <label>Platform Cache Time-To-Live (TTL)</label>
     <precision>18</precision>
     <required>false</required>

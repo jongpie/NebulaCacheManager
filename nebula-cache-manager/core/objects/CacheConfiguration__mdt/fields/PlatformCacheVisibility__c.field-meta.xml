@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>PlatformCacheVisibility__c</fullName>
+    <description>Documentation https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_enum_cache_Visibility.htm</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>When &quot;Namespace&quot; is set then cached data in one namespace isn&apos;t overwritten and accessible by similar key in another namespace.
+If a key has the Visibility.NAMESPACE attribute, a get method initiated from a different namespace returns null.</inlineHelpText>
     <label>Platform Cache Visibility</label>
     <required>false</required>
     <type>Picklist</type>

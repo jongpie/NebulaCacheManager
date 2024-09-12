@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <PlatformCachePartition xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Platform cache partition used by Nebula Cache Manager</description>
+    <description>Platform cache partition used by Nebula Cache Manager.
+When a partition has no allocation, cache operations (such as get and put) are not invoked, and no error is returned. Set minimum 1 MB for each type.</description>
     <isDefaultPartition>false</isDefaultPartition>
     <masterLabel>CacheManagerPartition</masterLabel>
     <platformCachePartitionTypes>
